@@ -5,6 +5,8 @@ frontend-web/build/
 frontend-web/node_modules/
 tmp-edge-tests/
 tmp-edge-tests-success/
+.env
+.env.production
 *.log
 npm-debug.log*
 yarn-debug.log*
