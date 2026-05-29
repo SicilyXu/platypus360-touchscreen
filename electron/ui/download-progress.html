@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Download Progress</title>
+  <style>
+    body { font-family: sans-serif; padding: 24px; }
+    h2 { font-size: 20px; margin-bottom: 12px; }
+    #progress-info { font-size: 16px; margin-bottom: 12px; }
+    ul { list-style: none; padding: 0; }
+    li { font-size: 16px; margin: 4px 0; }
+    .pending::before { content: '⏳ '; }
+    .done    { color: green; }
+    .done::before { content: '✔️ '; }
+    .downloading { color: #555; }
+    .downloading::before { content: '⬇️ '; }
+    .fail    { color: red; }
+    .fail::before  { content: '❌ '; }
+    #status { margin-top: 16px; font-weight: bold; }
+    #summary { margin-top: 16px; }
+    #summary h3 { margin-bottom: 8px; }
+    #file-list { max-height: 200px; overflow-y: auto; padding-left: 20px; margin-top: 16px; }
+    #file-list li { font-size: 14px; }
+  </style>
+</head>
+<body>
+  <h2>Downloading Resources…</h2>
+
+  <div id="progress-info">Waiting to start…</div>
+
+  <ul id="progress">
+    <li id="basicInfo"    class="pending">Basic Info</li>
+    <li id="contentTree"  class="pending">Content Tree</li>
+    <li id="ads"          class="pending">Ads</li>
+    <li id="videos"       class="pending">Videos</li>
+    <li id="flights"      class="pending">Flights</li>
+    <li id="news"         class="pending">News</li>
+    <li id="weather"      class="pending">Weather</li>
+    <li id="tides"        class="pending">Tides</li>
+  </ul>
+
+  <div id="status"></div>
+  <div id="summary"></div>
+
+  <h3>Downloaded Files</h3>
+  <ul id="file-list"></ul>
+
+  <script>
+    // 正在下载的文件名 -> li 映射（便于后续状态变更）
+    function getLiId(module, filename) {
+      // 只保留字母数字下划线，防止 id 冲突
+      return `downloading-${module}-${filename.replace(/[^\w]/g, '')}`;
+    }
+
+    // 实时进度提示
+    window.api.onDownloadProgress(info => {
+      document.getElementById('progress-info').innerText =
+        `Downloading ${info.type}: ${info.index}/${info.total}`;
+    });
+
+    // 模块完成/失败标记
+    window.api.onDownloadStatus((module, status) => {
+      const el = document.getElementById(module);
+      if (el) el.className = status; // 'done' or 'fail'
+    });
+
+    // 下载开始，显示“正在下载”
+    window.api.onDownloadFileStart && window.api.onDownloadFileStart(data => {
+      const ul = document.getElementById('file-list');
+      const li = document.createElement('li');
+      li.textContent = `[Downloading] [${data.module}] ${data.filename}`;
+      li.className = 'downloading';
+      li.id = getLiId(data.module, data.filename);
+      ul.appendChild(li);
+      ul.scrollTop = ul.scrollHeight;
+    });
+
+    // 下载完成，变为“完成”
+    window.api.onDownloadFile && window.api.onDownloadFile(data => {
+      const li = document.getElementById(getLiId(data.module, data.filename));
+      if (li) {
+        li.textContent = `[Done] [${data.module}] ${data.filename}`;
+        li.className = 'done';
+        li.id = '';
+      } else {
+        // 没有就直接追加（防止漏掉）
+        const ul = document.getElementById('file-list');
+        const li2 = document.createElement('li');
+        li2.textContent = `[Done] [${data.module}] ${data.filename}`;
+        li2.className = 'done';
+        ul.appendChild(li2);
+        ul.scrollTop = ul.scrollHeight;
+      }
+    });
+
+    // 下载失败，变为“失败”
+    window.api.onDownloadFileFail && window.api.onDownloadFileFail(data => {
+      const li = document.getElementById(getLiId(data.module, data.filename));
+      if (li) {
+        li.textContent = `[Failed] [${data.module}] ${data.filename}`;
+        li.className = 'fail';
+        li.id = '';
+      } else {
+        const ul = document.getElementById('file-list');
+        const li2 = document.createElement('li');
+        li2.textContent = `[Failed] [${data.module}] ${data.filename}`;
+        li2.className = 'fail';
+        ul.appendChild(li2);
+        ul.scrollTop = ul.scrollHeight;
+      }
+    });
+
+    // 只有 data.json 完成才显示全部完成
+    window.api.onDownloadFile && window.api.onDownloadFile(data => {
+      if (data.module === 'basicInfo' && data.filename === 'data.json') {
+        document.getElementById('status').innerText = 'All downloads completed!';
+      }
+    });
+
+    // 失败汇总显示
+    window.api.onDownloadSummary && window.api.onDownloadSummary(summary => {
+      const container = document.getElementById('summary');
+      container.innerHTML = '';
+      const keys = Object.keys(summary);
+      if (keys.length === 0) {
+        container.innerText = 'All files downloaded successfully.';
+        return;
+      }
+      const title = document.createElement('h3');
+      title.innerText = 'Failed Downloads';
+      container.appendChild(title);
+      keys.forEach(mod => {
+        const urls = summary[mod];
+        if (!urls.length) return;
+        const section = document.createElement('div');
+        const header = document.createElement('strong');
+        header.innerText = `${mod}:`;
+        section.appendChild(header);
+        const list = document.createElement('ul');
+        urls.forEach(u => {
+          const li = document.createElement('li');
+          li.textContent = u;
+          list.appendChild(li);
+        });
+        section.appendChild(list);
+        container.appendChild(section);
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,53 @@
+@media screen and (min-aspect-ratio: 9/16) {
+
+  html,
+  body {
+    max-width: 56.25vh;
+    overflow-x: hidden;
+    /* 避免横向滚动 */
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+.main-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  position: relative;
+  /* 给 overlay 定位参考 */
+}
+
+.main-content {
+  flex: 1;
+  position: relative;
+}
+
+.overlay-section {
+  height: calc(100vh - 18.3125rem - 10.77625rem - 19.5rem - 3.85rem);
+  bottom: 19.5rem;
+  left: 0;
+  right: 0;
+  z-index: 50;
+  position: absolute;
+}
+
+
+/* 设置全局字体变量 */
+:root {
+  --bs-font-sans-serif: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    "Noto Sans", "Liberation Sans", Arial, sans-serif, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+/* 应用全局字体 */
+body {
+  font-family: var(--bs-font-sans-serif);
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}

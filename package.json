@@ -1,0 +1,50 @@
+{
+  "name": "platypus360-touchscreen",
+  "version": "3.0.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "Offline touchscreen player for Platypus360 touchscreen",
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1",
+    "electron": "^37.2.1",
+    "electron-builder": "^23.6.0"
+  },
+  "build": {
+    "appId": "com.platypus360.touchscreen",
+    "productName": "Platypus360 Touchscreen",
+    "copyright": "Copyright © 2025 Platypus360",
+    "files": [
+      "electron/**/*",
+      "react-build/**/*",
+      "package.json"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "."
+    },
+    "nsis": {
+      "installerIcon": "Picon.ico",
+      "uninstallerIcon": "Picon.ico"
+    },
+    "win": {
+      "icon": "Picon.ico",
+      "artifactName": "Platypus360-Touchscreen-Setup-${version}.${ext}",
+      "executableName": "Platypus360 Touchscreen",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  }
+}
