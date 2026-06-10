@@ -5,36 +5,66 @@ const http = require('http');
 const https = require('https');
 const { URL } = require('url');
 
+const TIMEOUT_MS = 30000;   // 30s 超时
+const MAX_REDIRECTS = 5;    // 最多跟随 5 次重定向
+
 /**
- * 下载远程文件并保存到本地
+ * 下载远程文件并保存到本地，支持重定向和超时
  * @param {string} fileUrl - 要下载的远程文件地址（支持 http/https）
  * @param {string} savePath - 本地保存路径（包含文件名）
  * @returns {Promise<void>}
  */
-function downloadFile(fileUrl, savePath) {
+function downloadFile(fileUrl, savePath, redirectCount = 0) {
   return new Promise((resolve, reject) => {
-    const urlObj = new URL(fileUrl); // 解析 URL
-    const protocol = urlObj.protocol === 'https:' ? https : http; // 判断协议使用 https 或 http
+    const urlObj = new URL(fileUrl);
+    const protocol = urlObj.protocol === 'https:' ? https : http;
 
-    fs.mkdirSync(path.dirname(savePath), { recursive: true }); // 自动创建目标目录（如果不存在）
+    fs.mkdirSync(path.dirname(savePath), { recursive: true });
 
-    const file = fs.createWriteStream(savePath); // 创建写入流准备写入文件
-    protocol.get(fileUrl, (res) => {
-      // 判断 HTTP 状态码是否为 200
-      if (res.statusCode !== 200) {
+    const file = fs.createWriteStream(savePath);
+
+    const req = protocol.get(fileUrl, (res) => {
+      // 跟随重定向 (301/302/303/307/308)
+      if ([301, 302, 303, 307, 308].includes(res.statusCode)) {
         file.destroy();
-        fs.unlink(savePath, () => {}); // 删除空文件，避免下次被跳过
-        reject(new Error(`Download failed: ${res.statusCode}`));
-        return;
+        fs.unlink(savePath, () => {});
+        const location = res.headers['location'];
+        if (!location) {
+          return reject(new Error(`Redirect with no Location header (${res.statusCode})`));
+        }
+        if (redirectCount >= MAX_REDIRECTS) {
+          return reject(new Error(`Too many redirects (>${MAX_REDIRECTS})`));
+        }
+        // 解析相对路径重定向
+        const nextUrl = new URL(location, fileUrl).href;
+        return resolve(downloadFile(nextUrl, savePath, redirectCount + 1));
       }
 
-      res.pipe(file); // 将下载的内容导入文件流
+      if (res.statusCode !== 200) {
+        file.destroy();
+        fs.unlink(savePath, () => {});
+        return reject(new Error(`Download failed: HTTP ${res.statusCode} for ${fileUrl}`));
+      }
+
+      res.pipe(file);
       file.on('finish', () => {
-        file.close(); // 下载完成后关闭文件
-        resolve();    // 成功回调
+        file.close();
+        resolve();
       });
-    }).on('error', (err) => {
-      // 如果下载出错，删除已写入的临时文件
+      file.on('error', (err) => {
+        fs.unlink(savePath, () => reject(err));
+      });
+    });
+
+    req.setTimeout(TIMEOUT_MS, () => {
+      req.destroy();
+      file.destroy();
+      fs.unlink(savePath, () => {});
+      reject(new Error(`Download timed out after ${TIMEOUT_MS / 1000}s: ${fileUrl}`));
+    });
+
+    req.on('error', (err) => {
+      file.destroy();
       fs.unlink(savePath, () => reject(err));
     });
   });

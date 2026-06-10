@@ -14,6 +14,7 @@ import AdsSection from '../components/AdsSection';
 import OverlayPage from '../components/Content/OverlayPage';
 import SidebarPage from '../components/Content/SidebarPage';
 import LeafNodePage from '../components/Content/LeafNodePage';
+import MapPage from '../components/Content/MapPage';
 
 import FlightDetailPage from '../components/FlightDetail';
 import TideDetailPage from '../components/TideDetail';
@@ -56,6 +57,37 @@ const findContentById = (tree, targetId) => {
       if (found) return found;
     }
   }
+  return null;
+};
+
+const hasChildNodes = (node) => Array.isArray(node?.attributes) && node.attributes.length > 0;
+
+const renderContentNode = (node, onBack, rootName, fromAdv = false) => {
+  if (!node) return null;
+
+  if (node.isLeaf) {
+    return (
+      <LeafNodePage
+        node={node}
+        onBack={onBack}
+        rootName={rootName}
+        fromAdv={fromAdv}
+      />
+    );
+  }
+
+  if (node.layoutStyle === 'sidebar') {
+    return <SidebarPage node={node} onBack={onBack} rootName={rootName} />;
+  }
+
+  if (node.layoutStyle === 'map') {
+    return <MapPage node={node} onBack={onBack} rootName={rootName} />;
+  }
+
+  if (node.layoutStyle === 'overlay' || hasChildNodes(node)) {
+    return <OverlayPage node={node} onBack={onBack} rootName={rootName} />;
+  }
+
   return null;
 };
 
@@ -232,26 +264,12 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
       {(selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide) && (
         <div ref={overlayRef} id="overlay-root" className="overlay-section">
           {selectedTreeItem && (
-            selectedTreeItem.isLeaf ? (
-              <LeafNodePage
-                node={selectedTreeItem}
-                onBack={() => setSelectedTreeItem(null)}
-                rootName={selectedTreeItem.name}
-                fromAdv={fromAdv}
-              />
-            ) : selectedTreeItem.layoutStyle === 'overlay' ? (
-              <OverlayPage
-                node={selectedTreeItem}
-                onBack={() => setSelectedTreeItem(null)}
-                rootName={selectedTreeItem.name}
-              />
-            ) : selectedTreeItem.layoutStyle === 'sidebar' ? (
-              <SidebarPage
-                node={selectedTreeItem}
-                onBack={() => setSelectedTreeItem(null)}
-                rootName={selectedTreeItem.name}
-              />
-            ) : null
+            renderContentNode(
+              selectedTreeItem,
+              () => setSelectedTreeItem(null),
+              selectedTreeItem.name,
+              fromAdv
+            )
           )}
 
           {selectedFlight && (

@@ -161,6 +161,9 @@ async function autoUpdateCheck(showProgress = true) {
 // ── 每天凌晨 3 点自动重启 ─────────────────────────────────────────────────────
 
 let nightlyRestartScheduled = false;
+const AUTO_UPDATE_ON_START = false;
+const AUTO_UPDATE_INTERVAL_MS = 0;
+const ENABLE_NIGHTLY_RESTART = true;
 
 async function performNightlyRestart() {
   console.log('[NightlyRestart] Running checks...');
@@ -185,7 +188,7 @@ async function performNightlyRestart() {
 
     // 4. 先下载最新数据，下载失败则跳过（保留旧内容）
     console.log('[NightlyRestart] Downloading fresh data before restart...');
-    const success = await downloadVenueData(cfg.venueId, baseUrl, null);
+    const success = await downloadVenueData(cfg.venueId, baseUrl, null, true); // strict: 任何文件失败都不重启
     if (!success) {
       console.log('[NightlyRestart] Download failed, skip restart to keep existing content');
       return;
@@ -237,8 +240,12 @@ app.whenReady().then(() => {
   ensureBootstrap();
   ensureConfigFile();
   createWindow();
-  setTimeout(() => autoUpdateCheck(true), 2000);
-  scheduleNightlyRestart();
+  if (AUTO_UPDATE_ON_START) {
+    setTimeout(() => autoUpdateCheck(true), 2000);
+  }
+  if (ENABLE_NIGHTLY_RESTART) {
+    scheduleNightlyRestart();
+  }
 });
 
 
@@ -251,9 +258,11 @@ app.on('activate', () => {
 });
 
 // 每 6 小时定时自动更新
-setInterval(() => {
-  autoUpdateCheck(false);
-}, 1000 * 60 *  60 * 6);
+if (AUTO_UPDATE_INTERVAL_MS > 0) {
+  setInterval(() => {
+    autoUpdateCheck(false);
+  }, AUTO_UPDATE_INTERVAL_MS);
+}
 // ---------------- IPC 通信 ----------------
 
 ipcMain.handle('get-config', () => {

@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from "react";
 import LayoutWrapper from "./LayoutWrapper";
 import SidebarPage from "./SidebarPage";
 import LeafNodePage from "./LeafNodePage";
+import MapPage from "./MapPage";
 import { MapPin } from "lucide-react";
 import { adjustLightness, adjustBrightness } from "../../utils/colorCalculator";
 import AppContext from "../../context/AppContext";
@@ -38,11 +39,15 @@ const OverlayPage = ({ node, onBack, rootName }) => {
     setActiveChild(null);
   };
 
+  const hasChildNodes = (value) => Array.isArray(value?.attributes) && value.attributes.length > 0;
+
   if (activeChild) {
     const props = { node: activeChild, onBack: handleBackToParent, rootName };
     if (activeChild.isLeaf === true) return <LeafNodePage {...props} />;
     if (activeChild.layoutStyle === "overlay") return <OverlayPage {...props} />;
     if (activeChild.layoutStyle === "sidebar") return <SidebarPage {...props} />;
+    if (activeChild.layoutStyle === "map") return <MapPage {...props} />;
+    if (hasChildNodes(activeChild)) return <OverlayPage {...props} />;
   }
 
   const cleanMapUrl = node.mapUrl?.replace(/^\{|\}$/g, "");

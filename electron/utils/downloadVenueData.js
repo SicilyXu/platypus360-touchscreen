@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const http = require('http');
 const https = require('https');
+const crypto = require('crypto');
 const urlMod = require('url');
 const { pathToFileURL } = urlMod;
 const downloadFile = require('./downloadFile');
@@ -30,8 +31,7 @@ function fileUri(folder, fileUrl, saveDir) {
   const cleaned = String(fileUrl).trim();
   if (!cleaned) return null;
 
-  const lastSlash = cleaned.lastIndexOf('/');
-  const filename = lastSlash >= 0 ? cleaned.slice(lastSlash + 1) : cleaned;
+  const filename = getSafeAssetFilename(cleaned);
   const absPath = path.join(saveDir, folder, filename);
   const normalized = path.normalize(absPath);
 
@@ -41,6 +41,36 @@ function fileUri(folder, fileUrl, saveDir) {
     console.warn('[downloadVenueData] Failed to convert to file URL:', normalized, err.message);
     return normalized;
   }
+}
+
+function getSafeAssetFilename(fileUrl) {
+  const cleaned = String(fileUrl).trim().replace(/^\{+/, '').replace(/\}+$/, '');
+  const hash = crypto.createHash('sha1').update(cleaned).digest('hex').slice(0, 16);
+
+  try {
+    const parsed = new URL(cleaned);
+    const rawName = path.posix.basename(parsed.pathname) || 'asset';
+    return buildHashedFilename(rawName, hash);
+  } catch {
+    const withoutQuery = cleaned.split('?')[0].split('#')[0];
+    const lastSlash = withoutQuery.lastIndexOf('/');
+    const rawName = lastSlash >= 0 ? withoutQuery.slice(lastSlash + 1) : withoutQuery;
+    return buildHashedFilename(rawName || 'asset', hash);
+  }
+}
+
+function sanitizeFilename(name) {
+  return String(name)
+    .replace(/[<>:"/\\|?*\x00-\x1F]/g, '_')
+    .replace(/\s+/g, ' ')
+    .trim() || 'asset';
+}
+
+function buildHashedFilename(rawName, hash) {
+  const safeName = sanitizeFilename(rawName);
+  const ext = path.extname(safeName);
+  const base = ext ? safeName.slice(0, -ext.length) : safeName;
+  return `${base}-${hash}${ext}`;
 }
 
 /**
@@ -97,8 +127,7 @@ function downloadAssets(urls = [], baseDir, browserWindow, moduleName = '', fail
       return;
     }
 
-    const lastSlash = cleaned.lastIndexOf('/');
-    const filename = lastSlash >= 0 ? cleaned.slice(lastSlash + 1) : cleaned;
+    const filename = getSafeAssetFilename(cleaned);
     const savePath = path.join(baseDir, filename);
 
     // 【下载开始前】推送事件
@@ -117,31 +146,58 @@ function downloadAssets(urls = [], baseDir, browserWindow, moduleName = '', fail
     }
 
     console.log(`[downloadVenueData] Downloading: ${cleaned}`);
-    downloadFile(cleaned, savePath)
-      .then(() => {
-        console.log(`[downloadVenueData] Downloaded: ${filename}`);
-        if (browserWindow && !browserWindow.isDestroyed()) {
-          browserWindow.webContents.send('download-file', { module: moduleName, filename });
-        }
-        resolve();
-      })
-      .catch(err => {
-        console.warn(`[downloadVenueData] Failed to download: ${cleaned}`, err.message);
-        if (browserWindow && !browserWindow.isDestroyed()) {
-          browserWindow.webContents.send('download-file-fail', { module: moduleName, filename });
-        }
-        failList && failList.push({ module: moduleName, filename, url: cleaned, err: err.message });
-        resolve();
-      });
+    const MAX_RETRIES = 3;
+    const attemptDownload = (attempt) => {
+      downloadFile(cleaned, savePath)
+        .then(() => {
+          console.log(`[downloadVenueData] Downloaded: ${filename}`);
+          if (browserWindow && !browserWindow.isDestroyed()) {
+            browserWindow.webContents.send('download-file', { module: moduleName, filename });
+          }
+          resolve();
+        })
+        .catch(err => {
+          if (attempt < MAX_RETRIES) {
+            const delay = 1000 * attempt;
+            console.warn(`[downloadVenueData] Retry ${attempt}/${MAX_RETRIES} in ${delay}ms: ${filename}`);
+            setTimeout(() => attemptDownload(attempt + 1), delay);
+          } else {
+            console.warn(`[downloadVenueData] Failed after ${MAX_RETRIES} attempts: ${cleaned}`, err.message);
+            if (browserWindow && !browserWindow.isDestroyed()) {
+              browserWindow.webContents.send('download-file-fail', { module: moduleName, filename });
+            }
+            failList && failList.push({ module: moduleName, filename, url: cleaned, err: err.message });
+            resolve();
+          }
+        });
+    };
+    attemptDownload(1);
   }));
 
   return Promise.all(tasks);
 }
 
+function getPreferredAssetUri(folder, originalUrl, saveDir) {
+  if (!originalUrl) return null;
+  const localUri = fileUri(folder, originalUrl, saveDir);
+  if (!localUri) return originalUrl;
+
+  try {
+    const localPath = decodeURIComponent(new URL(localUri).pathname).replace(/^\/([A-Za-z]:\/)/, '$1');
+    if (fs.existsSync(localPath) && fs.statSync(localPath).size > 0) {
+      return localUri;
+    }
+  } catch {
+    // Fall back to the original remote URL below.
+  }
+
+  return originalUrl;
+}
+
 /**
  * 离线数据下载主流程（全流程带注释，推送实时进度）
  */
-async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
+async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict = false) {
   try {
     // 统一存放目录
     const ROOT_DOWNLOADS = getRootDownloadsDir();
@@ -201,12 +257,24 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
     return await new Promise((resolve) => {
       const finalize = () => {
         let success = !hasError;
+        const backupDir = path.join(ROOT_DOWNLOADS, `${venueId}_backup`);
 
-        if (success && failFiles.length > 0) {
+        if (failFiles.length > 0) {
+          if (strict) {
+            success = false;
+            console.warn(
+              `[downloadVenueData] ${failFiles.length} asset(s) failed (strict mode). Keeping existing bundle.`
+            );
+          } else {
+            console.warn(
+              `[downloadVenueData] ${failFiles.length} asset(s) failed to download, proceeding with partial data.`
+            );
+          }
+        }
+
+        if (!finalData.basicInfo || !finalData.contentTree) {
           success = false;
-          console.warn(
-            `[downloadVenueData] ${failFiles.length} asset(s) failed to download. Keeping existing bundle instead of swapping partial data.`
-          );
+          console.warn('[downloadVenueData] Missing required basicInfo/contentTree, keeping existing bundle.');
         }
 
         if (success) {
@@ -214,8 +282,10 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
             fs.writeFileSync(savePath, JSON.stringify(finalData, null, 2), 'utf-8');
 
             // 用临时目录替换正式目录
-            if (fs.existsSync(saveDir)) fs.rmSync(saveDir, { recursive: true });
+            if (fs.existsSync(backupDir)) fs.rmSync(backupDir, { recursive: true, force: true });
+            if (fs.existsSync(saveDir)) fs.renameSync(saveDir, backupDir);
             fs.renameSync(saveDirTemp, saveDir);
+            if (fs.existsSync(backupDir)) fs.rmSync(backupDir, { recursive: true, force: true });
             console.log(`[downloadVenueData] Bundle swapped to: ${saveDir}`);
 
             if (browserWindow && !browserWindow.isDestroyed()) {
@@ -227,12 +297,26 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
           } catch (writeErr) {
             success = false;
             console.error('[downloadVenueData] Failed to save data.json:', writeErr);
+            try {
+              if (!fs.existsSync(saveDir) && fs.existsSync(backupDir)) {
+                fs.renameSync(backupDir, saveDir);
+              }
+            } catch (restoreErr) {
+              console.error('[downloadVenueData] Failed to restore backup bundle:', restoreErr);
+            }
           }
         }
 
         if (!success) {
           console.warn('[downloadVenueData] Download failed, keeping existing data.');
-          try { if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true }); } catch {}
+          try { if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true, force: true }); } catch {}
+          try {
+            if (!fs.existsSync(saveDir) && fs.existsSync(backupDir)) {
+              fs.renameSync(backupDir, saveDir);
+            }
+          } catch (restoreErr) {
+            console.error('[downloadVenueData] Failed to restore backup bundle after unsuccessful download:', restoreErr);
+          }
         }
 
         if (browserWindow && !browserWindow.isDestroyed()) {
@@ -295,8 +379,8 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
                 await downloadAssets(slides, path.join(saveDirTemp, 'slides'), browserWindow, 'slides', failFiles);
                 await downloadAssets(logo, path.join(saveDirTemp, 'logo'), browserWindow, 'logo', failFiles);
 
-                data.landing.venueSlides = slides.map(u => fileUri('slides', u, saveDir));
-                data.landing.venueLogo = logo.length ? fileUri('logo', logo[0], saveDir) : null;
+                data.landing.venueSlides = slides.map(u => getPreferredAssetUri('slides', u, saveDir));
+                data.landing.venueLogo = logo.length ? getPreferredAssetUri('logo', logo[0], saveDir) : null;
                 break;
               }
               case 'contentTree': {
@@ -304,6 +388,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
                 function collect(n) {
                   if (n.bannerImage) allUrls.add(n.bannerImage);
                   if (n.mapUrl) allUrls.add(n.mapUrl);
+                  if (n.mapData?.imageUrl) allUrls.add(n.mapData.imageUrl);
                   if (Array.isArray(n.imageUrls)) n.imageUrls.forEach(u => allUrls.add(u));
                   if (Array.isArray(n.attributes)) n.attributes.forEach(collect);
                 }
@@ -312,10 +397,11 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
                 await downloadAssets([...allUrls], path.join(saveDirTemp, 'content'), browserWindow, 'content', failFiles);
 
                 function replace(n) {
-                  if (n.bannerImage) n.bannerImage = fileUri('content', n.bannerImage, saveDir);
-                  if (n.mapUrl) n.mapUrl = fileUri('content', n.mapUrl, saveDir);
+                  if (n.bannerImage) n.bannerImage = getPreferredAssetUri('content', n.bannerImage, saveDir);
+                  if (n.mapUrl) n.mapUrl = getPreferredAssetUri('content', n.mapUrl, saveDir);
+                  if (n.mapData?.imageUrl) n.mapData.imageUrl = getPreferredAssetUri('content', n.mapData.imageUrl, saveDir);
                   if (Array.isArray(n.imageUrls))
-                    n.imageUrls = n.imageUrls.map(u => fileUri('content', u, saveDir));
+                    n.imageUrls = n.imageUrls.map(u => getPreferredAssetUri('content', u, saveDir));
                   if (Array.isArray(n.attributes)) n.attributes.forEach(replace);
                 }
                 if (Array.isArray(data)) data.forEach(replace);
@@ -328,7 +414,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
                 await downloadAssets(unique, path.join(saveDirTemp, 'news'), browserWindow, 'news', failFiles);
                 data = data.map(i => ({
                   ...i,
-                  img: i.img ? fileUri('news', i.img, saveDir) : null
+                  img: i.img ? getPreferredAssetUri('news', i.img, saveDir) : null
                 }));
                 break;
               }
@@ -341,8 +427,8 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
                 await downloadAssets(unique, path.join(saveDirTemp, 'ads'), browserWindow, 'ads', failFiles);
                 data = adsList.map(ad => ({
                   ...ad,
-                  image: ad.image ? fileUri('ads', ad.image, saveDir) : null,
-                  specialImage: ad.specialImage ? fileUri('ads', ad.specialImage, saveDir) : null,
+                  image: ad.image ? getPreferredAssetUri('ads', ad.image, saveDir) : null,
+                  specialImage: ad.specialImage ? getPreferredAssetUri('ads', ad.specialImage, saveDir) : null,
                 }));
                 break;
               }
@@ -352,7 +438,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null) {
                 const unique = Array.from(new Set(urls));
                 await downloadAssets(unique, path.join(saveDirTemp, 'videos'), browserWindow, 'videos', failFiles);
                 data = data.map(v => {
-                  const localUri = v.publicLink ? fileUri('videos', v.publicLink, saveDir) : null;
+                  const localUri = v.publicLink ? getPreferredAssetUri('videos', v.publicLink, saveDir) : null;
                   return {
                     ...v,
                     publicLink: localUri || v.publicLink,

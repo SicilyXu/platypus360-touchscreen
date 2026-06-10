@@ -2,6 +2,7 @@ import React, { useState, useContext, useEffect } from "react";
 import LayoutWrapper from "./LayoutWrapper";
 import OverlayPage from "./OverlayPage";
 import LeafNodePage from "./LeafNodePage";
+import MapPage from "./MapPage";
 import { adjustLightness } from "../../utils/colorCalculator";
 import AppContext from "../../context/AppContext";
 import MapPreviewModal from "../MapPreviewModal";
@@ -32,11 +33,15 @@ const SidebarPage = ({ node, onBack, rootName }) => {
     setActiveChild(null);
   };
 
+  const hasChildNodes = (value) => Array.isArray(value?.attributes) && value.attributes.length > 0;
+
   if (activeChild) {
     const props = { node: activeChild, onBack: handleBackToParent, rootName };
     if (activeChild.isLeaf) return <LeafNodePage {...props} />;
     if (activeChild.layoutStyle === "overlay") return <OverlayPage {...props} />;
     if (activeChild.layoutStyle === "sidebar") return <SidebarPage {...props} />;
+    if (activeChild.layoutStyle === "map") return <MapPage {...props} />;
+    if (hasChildNodes(activeChild)) return <OverlayPage {...props} />;
   }
 
   return (
@@ -61,7 +66,7 @@ const SidebarPage = ({ node, onBack, rootName }) => {
           {node.attributes?.length > 0 ? (
             <div className="flex flex-col gap-[0.2rem] px-1">
               {node.attributes.map((child) => {
-                const clickable = child.isLeaf === true || child.layoutStyle !== "none";
+                const clickable = child.isLeaf === true || child.layoutStyle !== "none" || hasChildNodes(child);
 
                 return (
                   <div
