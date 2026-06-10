@@ -215,7 +215,7 @@ function scheduleNightlyRestart() {
 
   const now = new Date();
   const target = new Date();
-  target.setHours(14, 40, 0, 0);
+  target.setHours(14, 55, 0, 0);
   if (now >= target) target.setDate(target.getDate() + 1);
 
   const delay = target.getTime() - now.getTime();
