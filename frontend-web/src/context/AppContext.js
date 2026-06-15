@@ -7,10 +7,56 @@ import {
   getFlights,
   getWeather,
   getNews,
-  getTides
+  getTides,
+  getVLine
 } from '../api';
 
 const AppContext = createContext();
+
+const getLocalLiveInfoOverride = (venueId) => {
+  if (!venueId || typeof window === 'undefined') return '';
+
+  try {
+    const queryOverride = (() => {
+      const directParams = new URLSearchParams(window.location.search || '');
+      const directValue = directParams.get('force_live_info');
+      if (directValue) return directValue;
+
+      const hash = window.location.hash || '';
+      const hashQueryIndex = hash.indexOf('?');
+      if (hashQueryIndex >= 0) {
+        const hashQuery = hash.slice(hashQueryIndex + 1);
+        return new URLSearchParams(hashQuery).get('force_live_info');
+      }
+
+      return '';
+    })();
+
+    if (queryOverride) return queryOverride.toLowerCase();
+
+    const storageOverride = window.localStorage?.getItem(`ts_live_info_override_${venueId}`);
+    if (storageOverride) return storageOverride.toLowerCase();
+  } catch (err) {
+    console.warn('[AppContext] Failed to read local liveInfo override:', err);
+  }
+
+  return '';
+};
+
+const applyLocalLiveInfoOverride = (basicInfo, venueId) => {
+  if (!basicInfo) return basicInfo;
+
+  const override = getLocalLiveInfoOverride(venueId);
+  if (!override) return basicInfo;
+
+  return {
+    ...basicInfo,
+    landing: {
+      ...(basicInfo.landing || {}),
+      liveInfo: override,
+    },
+  };
+};
 
 export const AppProvider = ({ children }) => {
   const [venueId, setVenueId] = useState('');
@@ -22,6 +68,7 @@ export const AppProvider = ({ children }) => {
   const [newsData, setNewsData] = useState([]);
   const [weatherData, setWeatherData] = useState([]);
   const [tidesData, setTidesData] = useState([]);
+  const [vlineData, setVLineData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [fallbackImage, setFallbackImage] = useState('/images/main/touch_and_explore_banner.jpg');
@@ -39,7 +86,8 @@ export const AppProvider = ({ children }) => {
       || (Array.isArray(flightsData) && flightsData.length > 0)
       || (Array.isArray(weatherData) && weatherData.length > 0)
       || (Array.isArray(newsData) && newsData.length > 0)
-      || (Array.isArray(tidesData) && tidesData.length > 0);
+      || (Array.isArray(tidesData) && tidesData.length > 0)
+      || (Array.isArray(vlineData) && vlineData.length > 0);
   }, [
     venueBasicInfo,
     contentTree,
@@ -49,6 +97,7 @@ export const AppProvider = ({ children }) => {
     weatherData,
     newsData,
     tidesData,
+    vlineData,
   ]);
 
   // 注入离线数据（用 useCallback 保证函数引用稳定）
@@ -102,7 +151,7 @@ export const AppProvider = ({ children }) => {
 
     setFallbackImage(fixedLogo || fallbackBanner);
 
-    const fixedBasicInfo = {
+    const fixedBasicInfo = applyLocalLiveInfoOverride({
       ...rawBasic,
       status: rawBasic.status || 'active',
       validity: rawBasic.validity || { isActive: true, statusLogs: [] },
@@ -117,13 +166,14 @@ export const AppProvider = ({ children }) => {
         light: rawBasic.theme?.light || '#ffffff',
         dark: rawBasic.theme?.dark || '#000000',
       },
-    };
+    }, newVenueId);
 
     const live = data.liveInfo || {};
     const fixedFlights = live.flights || data.flights || [];
     const fixedWeather = live.weather || data.weather || [];
     const fixedNews = live.news || data.news || [];
     const fixedTides = live.tides || data.tides || [];
+    const fixedVLine = live.vline || data.vline || [];
 
     // 【核心】venueId 只 set 一次
     setVenueId(newVenueId);
@@ -135,6 +185,7 @@ export const AppProvider = ({ children }) => {
     setWeatherData(fixedWeather);
     setNewsData(fixedNews);
     setTidesData(fixedTides);
+    setVLineData(fixedVLine);
     setError('');
     setLoading(false);
 
@@ -151,6 +202,7 @@ export const AppProvider = ({ children }) => {
       setNewsData([]);
       setWeatherData([]);
       setTidesData([]);
+      setVLineData([]);
       setError('');
       return;
     }
@@ -170,11 +222,12 @@ export const AppProvider = ({ children }) => {
       getFlights(venueId),
       getWeather(venueId),
       getNews(venueId),
-      getTides(venueId)
+      getTides(venueId),
+      getVLine(venueId)
     ])
-      .then(([basicRes, contentTreeRes, advsRes, videosRes, flightsRes, weatherRes, newsRes, tidesRes]) => {
+      .then(([basicRes, contentTreeRes, advsRes, videosRes, flightsRes, weatherRes, newsRes, tidesRes, vlineRes]) => {
         if (basicRes.status === 'fulfilled' && basicRes.value && !offlineBundleMode) {
-          const info = basicRes.value;
+          const info = applyLocalLiveInfoOverride(basicRes.value, venueId);
           setVenueBasicInfo(info);
           const logo = info?.landing?.venueLogo;
           const cleanedLogo = typeof logo === 'string' ? logo.trim() : '';
@@ -192,6 +245,11 @@ export const AppProvider = ({ children }) => {
         if (weatherRes.status === 'fulfilled') setWeatherData(weatherRes.value || []);
         if (newsRes.status === 'fulfilled') setNewsData(newsRes.value || []);
         if (tidesRes.status === 'fulfilled') setTidesData(tidesRes.value || []);
+        if (vlineRes.status === 'fulfilled') {
+          setVLineData(vlineRes.value || []);
+        } else {
+          setVLineData([]);
+        }
       })
       .catch(err => {
         console.error('Venue load error:', err);
@@ -214,13 +272,16 @@ export const AppProvider = ({ children }) => {
         getFlights(venueId),
         getWeather(venueId),
         getNews(venueId),
-        getTides(venueId)
+        getTides(venueId),
+        getVLine(venueId)
       ])
-        .then(([flightsRes, weatherRes, newsRes, tidesRes]) => {
+        .then(([flightsRes, weatherRes, newsRes, tidesRes, vlineRes]) => {
           if (flightsRes.status === 'fulfilled') setFlightsData(flightsRes.value || []);
           if (weatherRes.status === 'fulfilled') setWeatherData(weatherRes.value || []);
           if (newsRes.status === 'fulfilled') setNewsData(newsRes.value || []);
           if (tidesRes.status === 'fulfilled') setTidesData(tidesRes.value || []);
+          if (vlineRes.status === 'fulfilled') setVLineData(vlineRes.value || []);
+          else setVLineData([]);
         })
         .catch(err => {
           console.error('Failed to refresh flight/weather/news:', err);
@@ -239,6 +300,7 @@ export const AppProvider = ({ children }) => {
     flightsData,
     newsData,
     weatherData,
+    vlineData,
     loading,
     error,
     fallbackImage,
@@ -246,7 +308,7 @@ export const AppProvider = ({ children }) => {
     injectOfflineData // 注入离线数据方法
   }), [
     venueId, venueBasicInfo, contentTree, venueAdvs, venueVideos, flightsData,
-    newsData, weatherData, loading, error, fallbackImage, tidesData, injectOfflineData
+    newsData, weatherData, vlineData, loading, error, fallbackImage, tidesData, injectOfflineData
   ]);
 
   return (

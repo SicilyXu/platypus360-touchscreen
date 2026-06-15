@@ -129,48 +129,65 @@ function downloadAssets(urls = [], baseDir, browserWindow, moduleName = '', fail
 
     const filename = getSafeAssetFilename(cleaned);
     const savePath = path.join(baseDir, filename);
+    const tempDownloadPath = `${savePath}.download`;
 
-    // 【下载开始前】推送事件
     if (browserWindow && !browserWindow.isDestroyed()) {
       browserWindow.webContents.send('download-file-start', { module: moduleName, filename });
     }
 
-    // 已存在则跳过
-    if (fs.existsSync(savePath) && fs.statSync(savePath).size > 0) {
-      console.log(`[downloadVenueData] Already exists, skipped: ${filename}`);
-      if (browserWindow && !browserWindow.isDestroyed()) {
-        browserWindow.webContents.send('download-file', { module: moduleName, filename });
+    try {
+      if (fs.existsSync(tempDownloadPath)) {
+        fs.unlinkSync(tempDownloadPath);
       }
-      resolve();
-      return;
-    }
+    } catch {}
 
     console.log(`[downloadVenueData] Downloading: ${cleaned}`);
+
     const MAX_RETRIES = 3;
+
     const attemptDownload = (attempt) => {
-      downloadFile(cleaned, savePath)
+      downloadFile(cleaned, tempDownloadPath)
         .then(() => {
+          try {
+            fs.renameSync(tempDownloadPath, savePath);
+          } catch (err) {
+            fs.copyFileSync(tempDownloadPath, savePath);
+            fs.unlinkSync(tempDownloadPath);
+          }
+
           console.log(`[downloadVenueData] Downloaded: ${filename}`);
+
           if (browserWindow && !browserWindow.isDestroyed()) {
             browserWindow.webContents.send('download-file', { module: moduleName, filename });
           }
+
           resolve();
         })
         .catch(err => {
+          try {
+            if (fs.existsSync(tempDownloadPath)) {
+              fs.unlinkSync(tempDownloadPath);
+            }
+          } catch {}
+
           if (attempt < MAX_RETRIES) {
             const delay = 1000 * attempt;
             console.warn(`[downloadVenueData] Retry ${attempt}/${MAX_RETRIES} in ${delay}ms: ${filename}`);
             setTimeout(() => attemptDownload(attempt + 1), delay);
           } else {
             console.warn(`[downloadVenueData] Failed after ${MAX_RETRIES} attempts: ${cleaned}`, err.message);
+
             if (browserWindow && !browserWindow.isDestroyed()) {
               browserWindow.webContents.send('download-file-fail', { module: moduleName, filename });
             }
+
             failList && failList.push({ module: moduleName, filename, url: cleaned, err: err.message });
+
             resolve();
           }
         });
     };
+
     attemptDownload(1);
   }));
 
@@ -212,6 +229,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
       news: `${baseUrl}/ts/${venueId}/live-info/news`,
       weather: `${baseUrl}/ts/${venueId}/live-info/weather`,
       tides: `${baseUrl}/ts/${venueId}/live-info/tides`,
+      vline: `${baseUrl}/ts/${venueId}/live-info/vline`,
     };
 
     const saveDir = path.join(ROOT_DOWNLOADS, venueId);
@@ -243,7 +261,8 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
         flights: null,
         news: null,
         weather: null,
-        tides: null
+        tides: null,
+        vline: null
       }
     };
 
@@ -258,18 +277,10 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
       const finalize = () => {
         let success = !hasError;
         const backupDir = path.join(ROOT_DOWNLOADS, `${venueId}_backup`);
-
         if (failFiles.length > 0) {
-          if (strict) {
-            success = false;
-            console.warn(
-              `[downloadVenueData] ${failFiles.length} asset(s) failed (strict mode). Keeping existing bundle.`
-            );
-          } else {
-            console.warn(
-              `[downloadVenueData] ${failFiles.length} asset(s) failed to download, proceeding with partial data.`
-            );
-          }
+          console.warn(
+            `[downloadVenueData] ${failFiles.length} asset(s) failed to download, proceeding with latest content.`
+          );
         }
 
         if (!finalData.basicInfo || !finalData.contentTree) {
@@ -309,7 +320,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
 
         if (!success) {
           console.warn('[downloadVenueData] Download failed, keeping existing data.');
-          try { if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true, force: true }); } catch {}
+          try { if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true, force: true }); } catch { }
           try {
             if (!fs.existsSync(saveDir) && fs.existsSync(backupDir)) {
               fs.renameSync(backupDir, saveDir);

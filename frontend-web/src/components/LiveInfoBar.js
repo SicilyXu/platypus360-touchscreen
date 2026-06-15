@@ -6,8 +6,13 @@ import '../App.css';
 
 const { Text } = Typography;
 
+const formatVLineDisplay = (service) => {
+  if (!service) return 'No V/Line timetable available';
+  return `V/Line: ${service.from || '-'} → ${service.to || '-'} ${service.departureTime || '--:--'}`;
+};
+
 const LiveInfoBar = (props) => {
-  const { flightsData, weatherData, venueBasicInfo, tidesData } = useContext(AppContext);
+  const { flightsData, weatherData, venueBasicInfo, tidesData, vlineData } = useContext(AppContext);
 
   const standardColor = venueBasicInfo?.theme?.standard || '#234B92';
   const lightColor = adjustLightness(standardColor, 0.35);
@@ -121,7 +126,25 @@ const LiveInfoBar = (props) => {
       const id = setInterval(updateTide, 5000);
       return () => clearInterval(id);
     }
-  }, [flightsData, props.tidesData, liveInfoType, tidesData]);
+
+    if (liveInfoType === 'vline') {
+      if (!vlineData?.length) {
+        setCurrentDisplay('No V/Line timetable available');
+        return;
+      }
+
+      let serviceIndex = 0;
+      const updateVLine = () => {
+        const service = vlineData[serviceIndex];
+        setCurrentDisplay(formatVLineDisplay(service));
+        serviceIndex = (serviceIndex + 1) % vlineData.length;
+      };
+
+      updateVLine();
+      const id = setInterval(updateVLine, 5000);
+      return () => clearInterval(id);
+    }
+  }, [flightsData, props.tidesData, liveInfoType, tidesData, vlineData]);
 
   const flipKey = currentTimeDisplay === 'dateTime'
     ? dateTime
@@ -172,6 +195,13 @@ useEffect(() => {
                 return display === currentDisplay;
               });
 
+              if (match && typeof props.onLeftItemClick === 'function') {
+                props.onLeftItemClick(match);
+              }
+            }
+
+            if (liveInfoType === 'vline') {
+              const match = vlineData.find((service) => formatVLineDisplay(service) === currentDisplay);
               if (match && typeof props.onLeftItemClick === 'function') {
                 props.onLeftItemClick(match);
               }

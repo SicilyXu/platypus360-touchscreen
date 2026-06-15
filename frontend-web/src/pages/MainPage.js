@@ -18,24 +18,24 @@ import MapPage from '../components/Content/MapPage';
 
 import FlightDetailPage from '../components/FlightDetail';
 import TideDetailPage from '../components/TideDetail';
+import VLineDetailPage from '../components/VLineDetail';
 import NewsListPage from '../components/News/NewsList';
 import NewsDetailPage from '../components/News/NewsDetail';
 
 import useIdleReset from '../components/UserIdle';
 
-
 import '../index.css';
-
-// const DEFAULT_VENUE_ID = 'ts_holiday_inn_express_hotel';
 
 function DotsLoading() {
   const [dots, setDots] = useState('');
+
   useEffect(() => {
     const interval = setInterval(() => {
-      setDots(prev => (prev.length < 3 ? prev + '.' : ''));
+      setDots((prev) => (prev.length < 3 ? prev + '.' : ''));
     }, 400);
     return () => clearInterval(interval);
   }, []);
+
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-white bg-opacity-80"
@@ -48,7 +48,6 @@ function DotsLoading() {
   );
 }
 
-// 在tscontent中递归查找指定 id 的内容节点
 const findContentById = (tree, targetId) => {
   for (const node of tree) {
     if (node.id === targetId) return node;
@@ -109,95 +108,93 @@ const MainPage = () => {
   const [selectedTreeItem, setSelectedTreeItem] = useState(null);
   const [selectedFlight, setSelectedFlight] = useState(null);
   const [selectedTide, setSelectedTide] = useState(null);
+  const [selectedVLineService, setSelectedVLineService] = useState(null);
   const [selectedNews, setSelectedNews] = useState(null);
   const [showAllNews, setShowAllNews] = useState(false);
   const [fromAdv, setFromAdv] = useState(false);
 
-
-
   const overlayRef = useRef();
 
-  // 初始化场馆
   useEffect(() => {
-    const venue_id = searchParams.get('venue_id');
-    if (venue_id) {
-      setVenueId(venue_id);
+    const venueId = searchParams.get('venue_id');
+    if (venueId) {
+      setVenueId(venueId);
     }
     window.scrollTo(0, 0);
   }, [searchParams, setVenueId]);
 
-  // 设置页面标题
   useEffect(() => {
     if (venueBasicInfo?.name) {
       document.title = venueBasicInfo.name;
     }
   }, [venueBasicInfo]);
 
-  // 当切换内容项，自动滚动顶部
   useEffect(() => {
     if (selectedTreeItem) {
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
   }, [selectedTreeItem]);
 
-  // 点击内容树项
-  const handleItemSelect = useCallback((item) => {
-    setSelectedFlight(null); // ❗关闭 flight
-    setSelectedTide(null); // ❗关闭 tide
-    setSelectedNews(null); // ❗关闭新闻
-    setSelectedTreeItem(item); // ✅打开内容项
+  const closeLiveInfoOverlays = useCallback(() => {
+    setSelectedFlight(null);
+    setSelectedTide(null);
+    setSelectedVLineService(null);
+    setSelectedNews(null);
+    setShowAllNews(false);
   }, []);
 
+  const handleItemSelect = useCallback((item) => {
+    closeLiveInfoOverlays();
+    setSelectedTreeItem(item);
+  }, [closeLiveInfoOverlays]);
 
-  // 点击广告跳转
   const handleAdvClick = (tsContentId) => {
     const node = findContentById(contentTree, tsContentId);
-    if (node) {
-      setSelectedFlight(null); // ❗关闭 flight
-      setSelectedNews(null); // ❗关闭新闻
-      setSelectedTide(null); // ❗关闭 tide
-      setSelectedTreeItem(node);
-      setFromAdv(true); // ❗标记为广告点击
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-    } else {
-      console.warn("❗ ts_content not found for ID:", tsContentId);
+    if (!node) {
+      console.warn('ts_content not found for ID:', tsContentId);
+      return;
     }
+
+    closeLiveInfoOverlays();
+    setSelectedTreeItem(node);
+    setFromAdv(true);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // 监听点击，点击 overlay 外部才关闭
   useEffect(() => {
     const handleClickOutside = (e) => {
       const isInsideOverlay = e.target.closest('#overlay-root') !== null;
       if (!isInsideOverlay) {
         setSelectedTreeItem(null);
-        setSelectedFlight(null);
-        setSelectedNews(null);
-        setShowAllNews(false);
-        setSelectedTide(null);
+        closeLiveInfoOverlays();
       }
     };
 
-    if (selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide) {
+    if (selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide || selectedVLineService) {
       document.addEventListener('mousedown', handleClickOutside);
     }
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [selectedTreeItem, selectedFlight, selectedNews, showAllNews, selectedTide]);
+  }, [
+    selectedTreeItem,
+    selectedFlight,
+    selectedNews,
+    showAllNews,
+    selectedTide,
+    selectedVLineService,
+    closeLiveInfoOverlays,
+  ]);
 
   useIdleReset(() => {
     setSelectedTreeItem(null);
-    setSelectedFlight(null);
-    setSelectedNews(null);
-    setShowAllNews(false);
-    setSelectedTide(null);
-  }, 60000); // 60秒无操作自动清空状态
-
+    closeLiveInfoOverlays();
+  }, 60000);
 
   if (!venueBasicInfo) {
     return <DotsLoading />;
   }
-console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, contentTree });
 
   return (
     <div className="main-wrapper">
@@ -214,17 +211,16 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
           venueBasicInfo={venueBasicInfo}
           onLeftItemClick={(item) => {
             setSelectedTreeItem(null);
-            setSelectedFlight(null);
-            setSelectedNews(null);
-            setShowAllNews(false);
+            closeLiveInfoOverlays();
 
             if (item?.flight) {
-              setSelectedFlight(item); // 是航班
+              setSelectedFlight(item);
             } else if (item?.type && item?.height) {
-              setSelectedTide(item);   // 是潮汐
+              setSelectedTide(item);
+            } else if (item?.serviceType && item?.from && item?.to) {
+              setSelectedVLineService(item);
             }
           }}
-
         />
 
         <ContentTreeSection
@@ -233,8 +229,7 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
           onItemSelect={handleItemSelect}
         />
 
-        {/* 主内容区（仅无选中内容或航班或新闻时显示） */}
-        {!selectedTreeItem && !selectedFlight && !selectedNews && !showAllNews && !selectedTide && (
+        {!selectedTreeItem && !selectedFlight && !selectedNews && !showAllNews && !selectedTide && !selectedVLineService && (
           <div>
             <NewsSection
               newsData={newsData}
@@ -245,6 +240,7 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
                 setSelectedFlight(null);
                 setSelectedNews(null);
                 setSelectedTide(null);
+                setSelectedVLineService(null);
               }}
             />
             <ImageSliders venueBasicInfo={venueBasicInfo} />
@@ -253,15 +249,13 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
         )}
       </div>
 
-      {/* 错误提示 */}
       {error && (
         <div className="fixed bottom-4 right-4 px-4 py-2 bg-red-100 text-red-600 rounded shadow">
           {error}
         </div>
       )}
 
-      {/* 遮罩层：显示内容页 / 航班 / 新闻列表 / 新闻详情 */}
-      {(selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide) && (
+      {(selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide || selectedVLineService) && (
         <div ref={overlayRef} id="overlay-root" className="overlay-section">
           {selectedTreeItem && (
             renderContentNode(
@@ -283,7 +277,7 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
               />
             </div>
           )}
-          
+
           {selectedTide && (
             <div className="w-full h-full overflow-hidden flex flex-col items-center">
               <TideDetailPage
@@ -295,6 +289,19 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
               />
             </div>
           )}
+
+          {selectedVLineService && (
+            <div className="w-full h-full overflow-hidden flex flex-col items-center">
+              <VLineDetailPage
+                selectedService={selectedVLineService}
+                onBack={() => setSelectedVLineService(null)}
+                onServiceClick={(service) => {
+                  setSelectedVLineService(service);
+                }}
+              />
+            </div>
+          )}
+
           {showAllNews && !selectedNews && (
             <NewsListPage
               newsData={newsData}
@@ -314,7 +321,7 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
                 selectedNews={selectedNews}
                 onBack={() => {
                   setSelectedNews(null);
-                  setShowAllNews(true); // 返回新闻列表页
+                  setShowAllNews(true);
                 }}
               />
             </div>
@@ -322,12 +329,9 @@ console.log('[MainPage] render', { venueBasicInfo, venueAdvs, venueVideos, conte
         </div>
       )}
 
-      {/* 广告区域常驻展示 */}
       <AdsSection venueAdvs={venueAdvs} onAdvClick={handleAdvClick} />
     </div>
   );
-
-
 };
 
 export default MainPage;

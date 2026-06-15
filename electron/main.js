@@ -14,7 +14,12 @@ const baseHostName = new URL(baseUrl).hostname;
 //如果需要指定venue，就启用下面信息
 const defaultConfig ={
   venueId:'',
-  lastUpdated: ''
+  lastUpdated: '',
+
+  lastAttempt: '',
+  lastSuccess: '',
+  lastStatus: '',
+  lastError: ''
 }
 
 
@@ -167,44 +172,100 @@ const ENABLE_NIGHTLY_RESTART = true;
 
 async function performNightlyRestart() {
   console.log('[NightlyRestart] Running checks...');
+
+  let cfg = {};
+
   try {
     // 1. 读取配置
-    const cfg = fs.existsSync(configPath)
+    cfg = fs.existsSync(configPath)
       ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
       : {};
 
-    // 2. 没有配置 venue，跳过（重启会跳到选 venue 页面）
+    // 记录本次尝试
+    cfg.lastAttempt = new Date().toISOString();
+    cfg.lastStatus = 'running';
+    cfg.lastError = '';
+
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(cfg, null, 2),
+      'utf-8'
+    );
+
+    // 2. 没有配置 venue，跳过
     if (!cfg.venueId) {
+      cfg.lastStatus = 'failed';
+      cfg.lastError = 'No venueId configured';
+
+      fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
+
       console.log('[NightlyRestart] No venueId, skip');
       return;
     }
 
-    // 3. 没有网络，跳过（重启没有意义）
+    // 3. 没有网络，跳过
     const online = await hasNetworkConnectivity();
     if (!online) {
+      cfg.lastStatus = 'failed';
+      cfg.lastError = 'No network connectivity';
+
+      fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
+
       console.log('[NightlyRestart] Offline, skip');
       return;
     }
 
-    // 4. 先下载最新数据，下载失败则跳过（保留旧内容）
+    // 4. 下载最新数据
     console.log('[NightlyRestart] Downloading fresh data before restart...');
-    const success = await downloadVenueData(cfg.venueId, baseUrl, null, true); // strict: 任何文件失败都不重启
+    const success = await downloadVenueData(
+      cfg.venueId,
+      baseUrl,
+      null,
+      true
+    );
+
     if (!success) {
+      cfg.lastStatus = 'failed';
+      cfg.lastError = 'downloadVenueData returned false';
+
+      fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
+
       console.log('[NightlyRestart] Download failed, skip restart to keep existing content');
       return;
     }
 
-    // 5. 更新 lastUpdated
-    cfg.lastUpdated = new Date().toISOString();
-    fs.writeFileSync(configPath, JSON.stringify(cfg, null, 2), 'utf-8');
+    // 5. 更新成功状态
+    const now = new Date().toISOString();
 
-    // 6. 所有条件满足，重启
+    cfg.lastUpdated = now;
+    cfg.lastSuccess = now;
+    cfg.lastStatus = 'success';
+    cfg.lastError = '';
+
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(cfg, null, 2),
+      'utf-8'
+    );
+
+    // 6. 重启
     console.log('[NightlyRestart] All checks passed, relaunching...');
     app.relaunch();
     app.exit(0);
 
   } catch (err) {
-    // 任何意外错误都不重启，保持当前显示
+
+    try {
+      cfg.lastStatus = 'failed';
+      cfg.lastError = err?.message || String(err);
+
+      fs.writeFileSync(
+        configPath,
+        JSON.stringify(cfg, null, 2),
+        'utf-8'
+      );
+    } catch {}
+
     console.error('[NightlyRestart] Unexpected error, skip restart:', err);
   }
 }

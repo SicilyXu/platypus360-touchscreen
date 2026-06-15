@@ -64,3 +64,11 @@ export function getTides(venueId) {
       return res.json();
     });
 }
+
+export function getVLine(venueId) {
+  return fetch(`${BASE_URL}/ts/${venueId}/live-info/vline`)
+    .then(res => {
+      if (!res.ok) throw new Error('Network response was not ok');
+      return res.json();
+    });
+}
