@@ -16,7 +16,10 @@ const LiveInfoBar = (props) => {
 
   const standardColor = venueBasicInfo?.theme?.standard || '#234B92';
   const lightColor = adjustLightness(standardColor, 0.35);
-  const liveInfoType = venueBasicInfo?.landing?.liveInfo?.toLowerCase() || 'flight';
+  const rawLiveInfo = venueBasicInfo?.landing?.liveInfo;
+  const liveInfoList = Array.isArray(rawLiveInfo)
+    ? rawLiveInfo.map(s => s.toLowerCase())
+    : (rawLiveInfo ? [rawLiveInfo.toLowerCase()] : ['flight']);
 
   const [dateTime, setDateTime] = useState('');
   const [formattedWeather, setFormattedWeather] = useState([]);
@@ -71,7 +74,7 @@ const LiveInfoBar = (props) => {
 
   // 切换航班 / 潮汐显示
   useEffect(() => {
-    if (liveInfoType === 'flight') {
+    if (liveInfoList.includes('flight')) {
       if (!flightsData?.length) {
         setCurrentDisplay('No flight information available');
         return;
@@ -96,7 +99,7 @@ const LiveInfoBar = (props) => {
       return () => clearInterval(id);
     }
 
-    if (liveInfoType === 'tide') {
+    if (liveInfoList.includes('tide')) {
       // console.log('Tides Data:', tidesData);
       const rawTideData = tidesData || [];
 
@@ -127,7 +130,7 @@ const LiveInfoBar = (props) => {
       return () => clearInterval(id);
     }
 
-    if (liveInfoType === 'vline') {
+    if (liveInfoList.includes('vline')) {
       if (!vlineData?.length) {
         setCurrentDisplay('No V/Line timetable available');
         return;
@@ -144,7 +147,7 @@ const LiveInfoBar = (props) => {
       const id = setInterval(updateVLine, 5000);
       return () => clearInterval(id);
     }
-  }, [flightsData, props.tidesData, liveInfoType, tidesData, vlineData]);
+  }, [flightsData, props.tidesData, liveInfoList, tidesData, vlineData]);
 
   const flipKey = currentTimeDisplay === 'dateTime'
     ? dateTime
@@ -163,7 +166,7 @@ useEffect(() => {
           onClick={() => {
            
 
-            if (liveInfoType === 'flight') {
+            if (liveInfoList.includes('flight')) {
               const match = flightsData.find((f) => {
                 const timePart = f?.departure?.estimated?.split('T')[1]?.slice(0, 5);
                 if (!timePart) return false;
@@ -178,7 +181,7 @@ useEffect(() => {
               }
             }
 
-            if (liveInfoType === 'tide') {
+            if (liveInfoList.includes('tide')) {
               const rawTideData = props.tidesData || [];
 
               // 展平 tide 数据并附上日期
@@ -200,7 +203,7 @@ useEffect(() => {
               }
             }
 
-            if (liveInfoType === 'vline') {
+            if (liveInfoList.includes('vline')) {
               const match = vlineData.find((service) => formatVLineDisplay(service) === currentDisplay);
               if (match && typeof props.onLeftItemClick === 'function') {
                 props.onLeftItemClick(match);
