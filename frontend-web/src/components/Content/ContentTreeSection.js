@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useMemo } from "react";
+import React, { useContext, useRef, useMemo, useState, useEffect } from "react";
 import AppContext from "../../context/AppContext";
 import ContentIcon from "./ContentIcon";
 import { getVenueDisplayName } from "../../utils/venueDisplayName";
@@ -20,10 +20,20 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
     return Array.isArray(contentTree) ? contentTree.slice(0, 7) : [];
   }, [contentTree]);
 
+  const [pendingId, setPendingId] = useState(null);
+
+  useEffect(() => {
+    setPendingId(selectedItem?.id ?? null);
+  }, [selectedItem]);
+
   const handleClick = (item) => {
     const isSame = selectedItem?.id === item.id;
-    onItemSelect?.(isSame ? null : item);
+    const next = isSame ? null : item;
+    setPendingId(next?.id ?? null);
+    onItemSelect?.(next);
   };
+
+  const effectiveId = pendingId ?? selectedItem?.id ?? null;
 
   return (
     <div
@@ -33,7 +43,7 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
       style={{ backgroundColor: standardColor }}
     >
       {items.map((item, idx) => {
-        const isSelected = selectedItem ? isNodeOrChildSelected(item, selectedItem.id) : false;
+        const isSelected = effectiveId ? isNodeOrChildSelected(item, effectiveId) : false;
 
         return (
           <div
