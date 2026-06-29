@@ -1,4 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
+// 离线模式页面 —— 拉取并注入数据后正式渲染 MainPage
 import React, { useEffect, useState, useContext, useRef } from 'react';
 import AppContext from '../context/AppContext';
 import MainPage from './MainPage';
@@ -18,15 +19,21 @@ const OfflineTouchscreenPage = ({ venueId, isOnline = true }) => {
     latestDataRef.current = initialData;
   }, [initialData]);
 
+  // 记录页面生命周期
   useEffect(() => {
-    return () => {};
+    // console.log('[OfflineTouchscreenPage] Mounted');
+    return () => {
+      // console.log('[OfflineTouchscreenPage] Unmounted');
+    };
   }, []);
 
+  // 拉取并读取本地数据，仅依赖 venueId
   useEffect(() => {
     console.log('[OfflinePage] Mounted');
     return () => console.log('[OfflinePage] Unmounted');
   }, []);
 
+  // 读取本地数据后，延迟触发最新数据请求
   useEffect(() => {
     if (!venueId) return undefined;
 
@@ -137,12 +144,16 @@ const OfflineTouchscreenPage = ({ venueId, isOnline = true }) => {
     };
   }, [venueId, isOnline]);
 
+
+  // 注入离线数据到 context，只在 initialData 有效时执行一次
   useEffect(() => {
     if (initialData) {
       injectOfflineData(initialData, venueId);
+      // console.log('[OfflineTouchscreenPage] Data injected to AppContext');
     }
   }, [initialData, injectOfflineData, venueId]);
 
+  // 渲染逻辑：下载中 / 错误 / 成功
   if (downloading) {
     return <div style={{ padding: 32, fontSize: '1.5rem' }}>Downloading venue data, please wait...</div>;
   }

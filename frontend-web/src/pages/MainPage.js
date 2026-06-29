@@ -40,17 +40,14 @@ function StatusScreen({ message }) {
     </div>
   );
 }
-
 function DotsLoading() {
   const [dots, setDots] = useState('');
-
   useEffect(() => {
     const interval = setInterval(() => {
       setDots((prev) => (prev.length < 3 ? prev + '.' : ''));
     }, 400);
     return () => clearInterval(interval);
   }, []);
-
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center bg-white bg-opacity-80"
@@ -128,7 +125,6 @@ const MainPage = () => {
     } else {
       id = host.split('.')[0];
     }
-
     setVenueId(id);
     setVenueResolved(true);
     window.scrollTo(0, 0);
@@ -187,7 +183,6 @@ const MainPage = () => {
     if (selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide || selectedVLineService) {
       document.addEventListener('mousedown', handleClickOutside);
     }
-
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
@@ -364,3 +359,10 @@ const MainPage = () => {
 };
 
 export default MainPage;
+
+
+
+
+
+
+

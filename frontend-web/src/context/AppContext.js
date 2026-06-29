@@ -100,9 +100,6 @@ export const AppProvider = ({ children }) => {
     if (!data) return;
 
     const newVenueId = venueIdOverride || data.venueId || data.basicInfo?.id || '';
-    if (injectedVenueId.current === newVenueId) {
-      return;
-    }
     injectedVenueId.current = newVenueId;
     const fallbackBanner = DEFAULT_FALLBACK_IMAGE;
 
@@ -314,3 +311,6 @@ export const AppProvider = ({ children }) => {
 };
 
 export default AppContext;
+
+
+
