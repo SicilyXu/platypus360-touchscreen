@@ -27,6 +27,7 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
 
   return (
     <div
+      id="content-tree-section"
       ref={containerRef}
       className="w-full h-[10.77625rem] flex"
       style={{ backgroundColor: standardColor }}

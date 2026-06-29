@@ -169,7 +169,8 @@ const MainPage = () => {
   useEffect(() => {
     const handleClickOutside = (e) => {
       const isInsideOverlay = e.target.closest('#overlay-root') !== null;
-      if (!isInsideOverlay) {
+      const isInsideNav = e.target.closest('#content-tree-section') !== null;
+      if (!isInsideOverlay && !isInsideNav) {
         setSelectedTreeItem(null);
         setSelectedFlight(null);
         setSelectedNews(null);
