@@ -15,6 +15,30 @@ const AppContext = createContext();
 const PUBLIC_URL = process.env.PUBLIC_URL || '.';
 const DEFAULT_FALLBACK_IMAGE = `${PUBLIC_URL}/images/main/touch_and_explore_banner.jpg`;
 
+const CACHE_TTL = 24 * 60 * 60 * 1000;
+
+function readVenueCache(venueId) {
+  try {
+    const raw = localStorage.getItem('ts_cache_' + venueId);
+    if (!raw) return null;
+    const { ts, basicInfo, contentTree } = JSON.parse(raw);
+    if (Date.now() - ts > CACHE_TTL) return null;
+    return { basicInfo, contentTree };
+  } catch {
+    return null;
+  }
+}
+
+function writeVenueCache(venueId, basicInfo, contentTree) {
+  try {
+    localStorage.setItem('ts_cache_' + venueId, JSON.stringify({
+      ts: Date.now(),
+      basicInfo,
+      contentTree,
+    }));
+  } catch {}
+}
+
 function normalizeOfflineAssetPath(assetPath) {
   if (!assetPath || typeof assetPath !== 'string') return '';
 
@@ -180,33 +204,44 @@ export const AppProvider = ({ children }) => {
       return;
     }
 
-    setLoading(true);
     setError('');
 
-    // Phase 1: critical path — show UI as soon as basicInfo + contentTree are ready
+    const isValidHttpUrl = (url) => /^https?:\/\/.+/.test(url);
+    const applyBasicInfo = (info) => {
+      setVenueBasicInfo(info);
+      const logo = info?.landing?.venueLogo;
+      const cleanedLogo = typeof logo === 'string' ? logo.trim() : '';
+      setFallbackImage(isValidHttpUrl(cleanedLogo) ? cleanedLogo : DEFAULT_FALLBACK_IMAGE);
+    };
+
+    // Serve from cache immediately so the UI shows without waiting for the network
+    const cached = readVenueCache(venueId);
+    if (cached) {
+      applyBasicInfo(cached.basicInfo);
+      setContentTree(cached.contentTree);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+
+    // Phase 1: always fetch fresh data (updates cache; shows UI if no cache)
     Promise.allSettled([
       getVenueBasicInfo(venueId),
       getVenueContentTree(venueId),
     ])
       .then(([basicRes, contentTreeRes]) => {
-        if (basicRes.status === 'fulfilled') {
-          const info = basicRes.value;
-          setVenueBasicInfo(info);
+        const freshBasic = basicRes.status === 'fulfilled' ? basicRes.value : null;
+        const freshTree = contentTreeRes.status === 'fulfilled' ? (contentTreeRes.value || []) : null;
 
-          const logo = info?.landing?.venueLogo;
-          const cleanedLogo = typeof logo === 'string' ? logo.trim() : '';
-          const isValidHttpUrl = (url) => /^https?:\/\/.+/.test(url);
-          setFallbackImage(
-            isValidHttpUrl(cleanedLogo) ? cleanedLogo : DEFAULT_FALLBACK_IMAGE
-          );
-        } else {
-          setVenueBasicInfo(null);
-          if (!hasDataRef.current) {
-            setError('Failed to load venue data');
-          }
+        if (freshBasic) {
+          applyBasicInfo(freshBasic);
+        } else if (!cached && !hasDataRef.current) {
+          setError('Failed to load venue data');
         }
 
-        if (contentTreeRes.status === 'fulfilled') setContentTree(contentTreeRes.value || []);
+        if (freshTree) setContentTree(freshTree);
+
+        if (freshBasic && freshTree) writeVenueCache(venueId, freshBasic, freshTree);
 
         setLoading(false);
 
@@ -234,7 +269,7 @@ export const AppProvider = ({ children }) => {
       })
       .catch((err) => {
         console.error('Venue load error:', err);
-        if (!hasDataRef.current) {
+        if (!cached && !hasDataRef.current) {
           setError('Failed to load venue data');
         }
         setLoading(false);
