@@ -6,6 +6,7 @@ import MapPage from "./MapPage";
 import { MapPin } from "lucide-react";
 import { adjustLightness, adjustBrightness } from "../../utils/colorCalculator";
 import AppContext from "../../context/AppContext";
+import { sortContentChildrenForDisplay } from "../../utils/contentOrder";
 import MapPreviewModal from "../MapPreviewModal";
 
 const OverlayPage = ({ node, onBack, rootName }) => {
@@ -28,6 +29,14 @@ const OverlayPage = ({ node, onBack, rootName }) => {
       standardColor
     );
   }, [standardColor]);
+
+  const [orderedChildren, setOrderedChildren] = useState(() => sortContentChildrenForDisplay(node));
+
+  useEffect(() => {
+    if (!activeChild) {
+      setOrderedChildren(sortContentChildrenForDisplay(node));
+    }
+  }, [node, activeChild]);
 
 
   const handleChildClick = (child) => {
@@ -55,7 +64,7 @@ const OverlayPage = ({ node, onBack, rootName }) => {
   return (
     <>
       <LayoutWrapper node={node} onBack={onBack} rootName={rootName}>
-        {/* 顶部标题栏 */}
+        {/* 顶部标题�?*/}
         <div
           className={`h-[5.7rem] flex items-center justify-center text-white font-medium tracking-[0.2em] relative z-10 text-center ${titleSizeClass}`}
           style={{
@@ -85,9 +94,9 @@ const OverlayPage = ({ node, onBack, rootName }) => {
           }}
           onClick={(e) => e.stopPropagation()}
         >
-          {node.attributes?.length > 0 ? (
+          {orderedChildren.length > 0 ? (
             <div className="flex flex-col gap-3 px-1">
-              {node.attributes.map((child) => {
+              {orderedChildren.map((child) => {
                 const imageUrl = child.bannerImage?.replace(/^\{|\}$/g, "") || "";
 
                 return (
@@ -134,3 +143,4 @@ const OverlayPage = ({ node, onBack, rootName }) => {
 };
 
 export default OverlayPage;
+

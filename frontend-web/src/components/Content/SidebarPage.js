@@ -5,6 +5,7 @@ import LeafNodePage from "./LeafNodePage";
 import MapPage from "./MapPage";
 import { adjustLightness } from "../../utils/colorCalculator";
 import AppContext from "../../context/AppContext";
+import { sortContentChildrenForDisplay } from "../../utils/contentOrder";
 import MapPreviewModal from "../MapPreviewModal";
 
 const SidebarPage = ({ node, onBack, rootName }) => {
@@ -23,6 +24,14 @@ const SidebarPage = ({ node, onBack, rootName }) => {
       standardColor
     );
   }, [standardColor]);
+
+  const [orderedChildren, setOrderedChildren] = useState(() => sortContentChildrenForDisplay(node));
+
+  useEffect(() => {
+    if (!activeChild) {
+      setOrderedChildren(sortContentChildrenForDisplay(node));
+    }
+  }, [node, activeChild]);
 
 
   const handleChildClick = (child) => {
@@ -47,7 +56,7 @@ const SidebarPage = ({ node, onBack, rootName }) => {
   return (
     <>
       <LayoutWrapper node={node} onBack={onBack} rootName={rootName}>
-        {/* 顶部栏 */}
+        {/* 顶部�?*/}
         <div
           className="h-[5.7rem] flex items-center justify-center text-white text-[2.5rem] font-medium tracking-[0.2em] relative z-10 text-center"
           style={{
@@ -57,15 +66,15 @@ const SidebarPage = ({ node, onBack, rootName }) => {
           {node.name?.toUpperCase() || "Untitled"}
         </div>
 
-        {/* 内容区 */}
+        {/* 内容�?*/}
         <div
           className="custom-scrollbar overflow-y-auto pt-[0.15rem] pb-2"
           style={{ maxHeight: "calc(100vh - 58.5rem)" }}
           onClick={(e) => e.stopPropagation()}
         >
-          {node.attributes?.length > 0 ? (
+          {orderedChildren.length > 0 ? (
             <div className="flex flex-col gap-[0.2rem] px-1">
-              {node.attributes.map((child) => {
+              {orderedChildren.map((child) => {
                 const clickable = child.isLeaf === true || child.layoutStyle !== "none" || hasChildNodes(child);
 
                 return (
@@ -122,3 +131,4 @@ const SidebarPage = ({ node, onBack, rootName }) => {
 };
 
 export default SidebarPage;
+
