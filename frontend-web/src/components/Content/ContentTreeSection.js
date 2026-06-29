@@ -88,4 +88,4 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
   );
 };
 
-export default ContentTreeSection;
+export default React.memo(ContentTreeSection);
