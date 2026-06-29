@@ -7,6 +7,7 @@ const ImageSliders = () => {
   const { venueBasicInfo } = useContext(AppContext);
   const images = venueBasicInfo?.landing?.venueSlides || [];
   const [curIdx, setCurIdx] = useState(0);
+  const [ready, setReady] = useState(false);
 
   if (!images.length) return null;
 
@@ -35,8 +36,8 @@ const ImageSliders = () => {
           position: "absolute",
           left: 0,
           top: 0,
-          opacity: 0.20,
-          filter: "blur(4px) grayscale(0.5)", // 可选，增加虚化
+          opacity: ready ? 0.20 : 0,
+          filter: "blur(4px) grayscale(0.5)",
           zIndex: 1,
           pointerEvents: "none",
           transition: "opacity 0.6s"
@@ -81,6 +82,7 @@ const ImageSliders = () => {
                   boxShadow: "0 0 40px 10px rgba(0,0,0,0.09)"
                 }}
                 draggable={false}
+                onLoad={idx === 0 ? () => setReady(true) : undefined}
               />
             </div>
 
@@ -98,7 +100,7 @@ const ImageSliders = () => {
           position: "absolute",
           left: 0,
           top: 0,
-          opacity: 0.13,
+          opacity: ready ? 0.13 : 0,
           filter: "blur(6px) grayscale(0.7)",
           zIndex: 0,
           pointerEvents: "none",
