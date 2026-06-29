@@ -1,5 +1,3 @@
-// utils/downloadVenueData.js
-
 const fs = require('fs');
 const path = require('path');
 const http = require('http');
@@ -10,21 +8,20 @@ const { pathToFileURL } = urlMod;
 const downloadFile = require('./downloadFile');
 const { BrowserWindow } = require('electron');
 
-// 引入 Electron 主进�?app
+// ���� Electron ������ app
 const { app } = require('electron');
 
 /**
- * 获取用户数据目录（Roaming）下�?venueData 根目�?
+ * ��ȡ�û�����Ŀ¼��Roaming���µ� venueData ��Ŀ¼
  */
 function getRootDownloadsDir() {
-  // 如：C:\Users\xxx\AppData\Roaming\你的APP\venueData
   return path.join(app.getPath('userData'), 'venueData');
 }
 
 console.log('[downloadVenueData] userData path:', app.getPath('userData'));
 
 /**
- * 生成 file:// 绝对路径
+ * ���� file:// ����·��
  */
 function fileUri(folder, fileUrl, saveDir) {
   if (!fileUrl) return null;
@@ -86,7 +83,7 @@ function loadExistingBundleData(saveDir) {
 }
 
 /**
- * 下载并解�?JSON（GET 请求�?
+ * ���ز����� JSON��GET ����
  */
 function fetchJson(fullUrl, callback) {
   console.log('[downloadVenueData] Fetching JSON:', fullUrl);
@@ -108,7 +105,7 @@ function fetchJson(fullUrl, callback) {
 }
 
 /**
- * 确保某个目录存在（如已有同名文件会先删除�?
+ * ȷ��Ŀ¼����
  */
 function ensureDir(targetPath) {
   if (fs.existsSync(targetPath)) {
@@ -124,7 +121,7 @@ function ensureDir(targetPath) {
 }
 
 /**
- * 下载一批资源（图片/视频），并实时推送每个文件的进度
+ * ����һ����Դ�ļ���������ʧ����
  */
 function downloadAssets(urls = [], baseDir, browserWindow, moduleName = '', failList = []) {
   ensureDir(baseDir);
@@ -152,6 +149,25 @@ function downloadAssets(urls = [], baseDir, browserWindow, moduleName = '', fail
         fs.unlinkSync(tempDownloadPath);
       }
     } catch {}
+
+    try {
+      if (fs.existsSync(savePath)) {
+        const existingStat = fs.statSync(savePath);
+        if (existingStat.isFile() && existingStat.size > 0) {
+          console.log(`[downloadVenueData] Already exists, skipped: ${filename}`);
+          if (browserWindow && !browserWindow.isDestroyed()) {
+            browserWindow.webContents.send('download-file', { module: moduleName, filename });
+          }
+          resolve();
+          return;
+        }
+
+        fs.unlinkSync(savePath);
+        console.warn(`[downloadVenueData] Re-downloading invalid local asset: ${filename}`);
+      }
+    } catch (err) {
+      console.warn(`[downloadVenueData] Failed to inspect existing asset: ${filename}`, err.message);
+    }
 
     console.log(`[downloadVenueData] Downloading: ${cleaned}`);
 
@@ -206,6 +222,19 @@ function downloadAssets(urls = [], baseDir, browserWindow, moduleName = '', fail
   return Promise.all(tasks);
 }
 
+function getAssetFailuresSince(failList, startIndex, moduleNames) {
+  const names = new Set(moduleNames);
+  return failList.slice(startIndex).filter((item) => names.has(item.module));
+}
+
+function assertModuleAssetsDownloaded(key, failList, startIndex, moduleNames) {
+  const failures = getAssetFailuresSince(failList, startIndex, moduleNames);
+  if (failures.length === 0) return;
+
+  const filenames = failures.map((item) => item.filename || item.url || 'unknown').join(', ');
+  throw new Error(`[downloadVenueData] [${key}] asset download incomplete: ${filenames}`);
+}
+
 function getPreferredAssetUri(folder, originalUrl, saveDir, candidateDirs = [saveDir]) {
   if (!originalUrl) return null;
   const localUri = fileUri(folder, originalUrl, saveDir);
@@ -226,15 +255,10 @@ function getPreferredAssetUri(folder, originalUrl, saveDir, candidateDirs = [sav
   return originalUrl;
 }
 
-/**
- * 离线数据下载主流程（全流程带注释，推送实时进度）
- */
 async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict = false) {
   try {
-    // 统一存放目录
     const ROOT_DOWNLOADS = getRootDownloadsDir();
 
-    // 各模�?API
     const endpoints = {
       basicInfo: `${baseUrl}/ts/${venueId}/basic-info`,
       contentTree: `${baseUrl}/ts/${venueId}/ts-content-tree`,
@@ -250,11 +274,10 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
     const saveDir = path.join(ROOT_DOWNLOADS, venueId);
     const saveDirTemp = path.join(ROOT_DOWNLOADS, venueId + '_temp');
 
-    if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true });
+    if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true, force: true });
     ensureDir(saveDirTemp);
     ensureDir(saveDir);
 
-    // 把旧文件复制到临时目录，后续只下载新增的文件，避免重复下�?
     if (fs.existsSync(saveDir)) {
       try {
         fs.cpSync(saveDir, saveDirTemp, { recursive: true });
@@ -267,7 +290,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
     const savePath = path.join(saveDirTemp, 'data.json');
     const existingData = loadExistingBundleData(saveDir) || {};
 
-    // 用于保存最�?json 数据
     const finalData = {
       basicInfo: existingData.basicInfo || existingData['basic-info'] || null,
       contentTree: existingData.contentTree || existingData['ts-content-tree'] || null,
@@ -282,7 +304,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
       }
     };
 
-    // 统计失败资源
     const failFiles = [];
     const failedModules = [];
 
@@ -295,7 +316,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
         const backupDir = path.join(ROOT_DOWNLOADS, `${venueId}_backup`);
         if (failFiles.length > 0) {
           console.warn(
-            `[downloadVenueData] ${failFiles.length} asset(s) failed to download, proceeding with latest content.`
+            `[downloadVenueData] ${failFiles.length} asset(s) failed to download, keeping previous data for affected modules.`
           );
         }
 
@@ -314,7 +335,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
           try {
             fs.writeFileSync(savePath, JSON.stringify(finalData, null, 2), 'utf-8');
 
-            // 用临时目录替换正式目�?
             if (fs.existsSync(backupDir)) fs.rmSync(backupDir, { recursive: true, force: true });
             if (fs.existsSync(saveDir)) fs.renameSync(saveDir, backupDir);
             fs.renameSync(saveDirTemp, saveDir);
@@ -342,7 +362,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
 
         if (!success) {
           console.warn('[downloadVenueData] Download failed, keeping existing data.');
-          try { if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true, force: true }); } catch { }
+          try { if (fs.existsSync(saveDirTemp)) fs.rmSync(saveDirTemp, { recursive: true, force: true }); } catch {}
           try {
             if (!fs.existsSync(saveDir) && fs.existsSync(backupDir)) {
               fs.renameSync(backupDir, saveDir);
@@ -369,9 +389,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
         resolve(success);
       };
 
-      /**
-       * 每完成一个模块，推送状�?
-       */
       function reportDone(key, err) {
         completed++;
         if (err) {
@@ -386,9 +403,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
         }
       }
 
-      /**
-       * 各模块实际下载和数据处理
-       */
       function track(key, fetchUrl, assignFn) {
         fetchJson(fetchUrl, async (err, data) => {
           if (err) {
@@ -407,10 +421,12 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
           try {
             switch (key) {
               case 'basicInfo': {
+                const assetStartIndex = failFiles.length;
                 const slides = Array.isArray(data.landing?.venueSlides) ? data.landing.venueSlides : [];
                 const logo = data.landing?.venueLogo ? [data.landing.venueLogo] : [];
                 await downloadAssets(slides, path.join(saveDirTemp, 'slides'), browserWindow, 'slides', failFiles);
                 await downloadAssets(logo, path.join(saveDirTemp, 'logo'), browserWindow, 'logo', failFiles);
+                assertModuleAssetsDownloaded(key, failFiles, assetStartIndex, ['slides', 'logo']);
 
                 data.landing.venueSlides = slides.map((u) =>
                   getPreferredAssetUri('slides', u, saveDir, [saveDirTemp, saveDir])
@@ -421,6 +437,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
                 break;
               }
               case 'contentTree': {
+                const assetStartIndex = failFiles.length;
                 const allUrls = new Set();
                 function collect(n) {
                   if (n.bannerImage) allUrls.add(n.bannerImage);
@@ -432,6 +449,7 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
                 if (Array.isArray(data)) data.forEach(collect);
                 else collect(data);
                 await downloadAssets([...allUrls], path.join(saveDirTemp, 'content'), browserWindow, 'content', failFiles);
+                assertModuleAssetsDownloaded(key, failFiles, assetStartIndex, ['content']);
 
                 function replace(n) {
                   if (n.bannerImage) {
@@ -443,10 +461,11 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
                   if (n.mapData?.imageUrl) {
                     n.mapData.imageUrl = getPreferredAssetUri('content', n.mapData.imageUrl, saveDir, [saveDirTemp, saveDir]);
                   }
-                  if (Array.isArray(n.imageUrls))
+                  if (Array.isArray(n.imageUrls)) {
                     n.imageUrls = n.imageUrls.map((u) =>
                       getPreferredAssetUri('content', u, saveDir, [saveDirTemp, saveDir])
                     );
+                  }
                   if (Array.isArray(n.attributes)) n.attributes.forEach(replace);
                 }
                 if (Array.isArray(data)) data.forEach(replace);
@@ -454,22 +473,27 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
                 break;
               }
               case 'news': {
-                const imgs = (Array.isArray(data) ? data : []).map(i => i.img).filter(Boolean);
+                const assetStartIndex = failFiles.length;
+                const newsList = Array.isArray(data) ? data : [];
+                const imgs = newsList.map(i => i.img).filter(Boolean);
                 const unique = Array.from(new Set(imgs));
                 await downloadAssets(unique, path.join(saveDirTemp, 'news'), browserWindow, 'news', failFiles);
-                data = data.map(i => ({
+                assertModuleAssetsDownloaded(key, failFiles, assetStartIndex, ['news']);
+                data = newsList.map(i => ({
                   ...i,
                   img: i.img ? getPreferredAssetUri('news', i.img, saveDir, [saveDirTemp, saveDir]) : null
                 }));
                 break;
               }
               case 'ads': {
+                const assetStartIndex = failFiles.length;
                 const adsList = Array.isArray(data) ? data : [];
                 const urls = adsList
                   .flatMap(ad => [ad.image, ad.specialImage])
                   .filter(Boolean);
                 const unique = Array.from(new Set(urls));
                 await downloadAssets(unique, path.join(saveDirTemp, 'ads'), browserWindow, 'ads', failFiles);
+                assertModuleAssetsDownloaded(key, failFiles, assetStartIndex, ['ads']);
                 data = adsList.map(ad => ({
                   ...ad,
                   image: ad.image ? getPreferredAssetUri('ads', ad.image, saveDir, [saveDirTemp, saveDir]) : null,
@@ -480,11 +504,14 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
                 break;
               }
               case 'videos': {
-                const urls = (Array.isArray(data) ? data : [])
+                const assetStartIndex = failFiles.length;
+                const videoList = Array.isArray(data) ? data : [];
+                const urls = videoList
                   .map(v => v.publicLink).filter(Boolean);
                 const unique = Array.from(new Set(urls));
                 await downloadAssets(unique, path.join(saveDirTemp, 'videos'), browserWindow, 'videos', failFiles);
-                data = data.map(v => {
+                assertModuleAssetsDownloaded(key, failFiles, assetStartIndex, ['videos']);
+                data = videoList.map(v => {
                   const localUri = v.publicLink
                     ? getPreferredAssetUri('videos', v.publicLink, saveDir, [saveDirTemp, saveDir])
                     : null;
@@ -497,7 +524,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
                 break;
               }
               default:
-                // liveInfo 模块（flights, weather, tides）无需额外下载
                 break;
             }
             assignFn(data);
@@ -509,7 +535,6 @@ async function downloadVenueData(venueId, baseUrl, browserWindow = null, strict 
         });
       }
 
-      // 启动所有模块的下载
       Object.entries(endpoints).forEach(([key, url]) =>
         track(key, url, data => {
           if (key === 'basicInfo') finalData.basicInfo = data;
