@@ -1,7 +1,7 @@
 import React, { useContext, useRef, useMemo } from "react";
 import AppContext from "../../context/AppContext";
 import ContentIcon from "./ContentIcon";
-import { getVenueDisplayName } from '../../utils/venueDisplayName';
+import { getVenueDisplayName } from "../../utils/venueDisplayName";
 
 const isNodeOrChildSelected = (node, targetId) => {
   if (node.id === targetId) return true;
@@ -11,9 +11,6 @@ const isNodeOrChildSelected = (node, targetId) => {
   return false;
 };
 
-/**
- * 顶部横向内容导航条组件（仅负责展示与选中）
- */
 const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
   const { contentTree, venueBasicInfo, venueId } = useContext(AppContext);
   const standardColor = venueBasicInfo?.theme?.standard || "#234B92";
@@ -37,7 +34,6 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
       {items.map((item, idx) => {
         const isSelected = selectedItem ? isNodeOrChildSelected(item, selectedItem.id) : false;
 
-
         return (
           <div
             key={idx}
@@ -53,7 +49,6 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
                 : standardColor,
             }}
           >
-            {/* 图标部分 */}
             <div className="h-[6rem] w-[5rem] mb-[0.8rem] flex items-center justify-center">
               <ContentIcon
                 name={item}
@@ -66,7 +61,6 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
               />
             </div>
 
-            {/* 名称文字 */}
             <span
               className={`text-white text-center uppercase leading-[1.1] select-none transition-all duration-200 ${
                 isSelected

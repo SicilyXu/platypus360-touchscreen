@@ -1,0 +1,44 @@
+{
+  "ts_yarrawonga_visitor_centre": [
+    {
+      "serviceType": "Train + Coach",
+      "from": "Southern Cross",
+      "to": "Yarrawonga",
+      "departureTime": "09:05",
+      "arrivalTime": "12:40",
+      "note": "Train to Benalla, then coach connection to Yarrawonga",
+      "connection": "via Benalla",
+      "status": "scheduled"
+    },
+    {
+      "serviceType": "Coach",
+      "from": "Benalla",
+      "to": "Yarrawonga",
+      "departureTime": "10:55",
+      "arrivalTime": "12:05",
+      "note": "Regional coach service from Benalla station",
+      "connection": "via Benalla Station",
+      "status": "scheduled"
+    },
+    {
+      "serviceType": "Coach",
+      "from": "Yarrawonga",
+      "to": "Benalla",
+      "departureTime": "13:20",
+      "arrivalTime": "14:30",
+      "note": "Connects with afternoon train services from Benalla",
+      "connection": "for Southern Cross connection",
+      "status": "scheduled"
+    },
+    {
+      "serviceType": "Train + Coach",
+      "from": "Yarrawonga",
+      "to": "Southern Cross",
+      "departureTime": "15:10",
+      "arrivalTime": "18:35",
+      "note": "Coach to Benalla, then train connection to Southern Cross",
+      "connection": "via Benalla",
+      "status": "scheduled"
+    }
+  ]
+}

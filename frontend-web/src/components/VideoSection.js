@@ -1,143 +1,111 @@
-import React, { useEffect, useRef, useState, useContext, useMemo, useCallback } from "react";
+import React, { useEffect, useRef, useState, useContext, useMemo } from "react";
 import AppContext from "../context/AppContext";
-
-function weightedOrder(videos) {
-  const idxArr = [];
-  videos.forEach((v, i) => {
-    const count = v.weight && v.weight > 0 ? v.weight : 1;
-    for (let j = 0; j < count; j++) idxArr.push(i);
-  });
-  return idxArr;
-}
-
-function shuffle(arr) {
-  const res = [...arr];
-  for (let i = res.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [res[i], res[j]] = [res[j], res[i]];
-  }
-  return res;
-}
-
-const VIDEO_LOAD_TIMEOUT_MS = 8000;
 
 const VideoSection = () => {
   const { venueVideos } = useContext(AppContext);
-  const videoRef = useRef(null);
-  const loadTimeoutRef = useRef(null);
-  const switchingRef = useRef(false);
+  const displayMode = false; // 绂荤嚎鐗堟案杩滄槸false
 
+  const videoRef = useRef(null);
+
+  // 鍏滃簳锛歷enueVideos 闈炴暟缁勬椂杩斿洖绌烘暟缁?
   const videos = useMemo(
-    () => (Array.isArray(venueVideos) ? venueVideos : []).filter(v => Boolean(v?.videoUrl || v?.publicLink)),
+    () => (Array.isArray(venueVideos) ? venueVideos : []),
     [venueVideos]
   );
-  const [order, setOrder] = useState([]);
-  const [curIdx, setCurIdx] = useState(0);
 
-  const clearLoadTimeout = useCallback(() => {
-    if (loadTimeoutRef.current) {
-      clearTimeout(loadTimeoutRef.current);
-      loadTimeoutRef.current = null;
-    }
-  }, []);
+  const [curIdx, setCurIdx] = useState(0); // 褰撳墠鎾斁瑙嗛绱㈠紩
 
-  const advanceVideo = useCallback(() => {
-    if (!order.length) return;
-    switchingRef.current = true;
-
-    if (curIdx === order.length - 1) {
-      setOrder(shuffle(weightedOrder(videos)));
-      setCurIdx(0);
-      return;
-    }
-
-    setCurIdx(idx => idx + 1);
-  }, [curIdx, order.length, videos]);
-
+  // 姣忔鍒囨崲寮哄埗浠庡ご鎾斁
   useEffect(() => {
-    clearLoadTimeout();
-
-    if (!videos.length) {
-      setOrder([]);
-      setCurIdx(0);
-      return;
+    if (videoRef.current) {
+      try {
+        videoRef.current.currentTime = 0;
+        videoRef.current.play().catch(() => {});
+      } catch {}
     }
+  }, [curIdx]);
 
-    setOrder(shuffle(weightedOrder(videos)));
-    setCurIdx(0);
-  }, [videos, clearLoadTimeout]);
+  // 瑙嗛鑷劧鎾斁瀹岋紝鑷姩鍒囨崲鍒颁笅涓€娈?
+  const handleEnded = () => {
+    if (!videos.length) return;
+    setCurIdx((idx) => (idx + 1) % videos.length);
+  };
 
-  useEffect(() => {
-    clearLoadTimeout();
+  // 鎵嬪姩涓婁竴娈?涓嬩竴娈碉紙displayMode 涓?true 鎵嶆樉绀烘寜閽級
+  const goPrev = () => {
+    if (!videos.length) return;
+    setCurIdx((idx) => (idx - 1 + videos.length) % videos.length);
+  };
 
-    if (!videoRef.current || !order.length) {
-      return undefined;
-    }
+  const goNext = () => {
+    if (!videos.length) return;
+    setCurIdx((idx) => (idx + 1) % videos.length);
+  };
 
-    const player = videoRef.current;
-    switchingRef.current = true;
-    player.currentTime = 0;
-    player.load();
+  if (!videos.length) return null;
 
-    loadTimeoutRef.current = setTimeout(() => {
-      console.warn("[VideoSection] Video load timed out, skipping to next video");
-      advanceVideo();
-    }, VIDEO_LOAD_TIMEOUT_MS);
+  // 褰撳墠瑙嗛
+  const v = videos[curIdx];
 
-    return clearLoadTimeout;
-  }, [curIdx, order, advanceVideo, clearLoadTimeout]);
-
-  const handleEnded = useCallback(() => {
-    clearLoadTimeout();
-    advanceVideo();
-  }, [advanceVideo, clearLoadTimeout]);
-
-  const handleVideoReady = useCallback(() => {
-    clearLoadTimeout();
-
-    if (!videoRef.current) return;
-
-    videoRef.current.play().catch((err) => {
-      console.warn("[VideoSection] play() failed after ready event:", err?.message || err);
-    });
-    switchingRef.current = false;
-  }, [advanceVideo, clearLoadTimeout]);
-
-  const handleVideoError = useCallback(() => {
-    clearLoadTimeout();
-    if (switchingRef.current) {
-      console.warn("[VideoSection] Ignoring transient error while switching sources");
-      return;
-    }
-    const mediaError = videoRef.current?.error;
-    console.warn(
-      "[VideoSection] Video playback error, skipping to next video:",
-      mediaError?.message || mediaError?.code || "unknown"
-    );
-    advanceVideo();
-  }, [advanceVideo, clearLoadTimeout]);
-
-  if (!videos.length || !order.length) return null;
-
-  const currentVideo = videos[order[curIdx]];
-  const src = currentVideo.videoUrl || currentVideo.publicLink;
   return (
-    <div className="w-full h-full bg-black overflow-hidden flex items-center justify-center">
+    <div className="w-full h-full bg-black overflow-hidden flex items-center justify-center relative">
       <video
-        key={currentVideo.id || src || curIdx}
+        key={v.id || v.publicLink || curIdx}
         ref={videoRef}
-        src={src}
+        src={v.publicLink}
         className="w-full h-full object-cover"
         onEnded={handleEnded}
-        onLoadedData={handleVideoReady}
-        onCanPlay={handleVideoReady}
-        onError={handleVideoError}
         playsInline
         preload="auto"
         controls={false}
-        autoPlay
-        muted
       />
+
+     {displayMode && (
+        <>
+          {/* 宸︾澶?*/}
+          <button
+            type="button"
+            aria-label="Previous video"
+            onClick={goPrev}
+            className="absolute left-[1rem] top-1/2 -translate-y-1/2 w-[3rem] h-[3rem] flex items-center justify-center bg-black/40 hover:bg-black/60 rounded-full backdrop-blur-sm border border-white/30 transition"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="white"
+              className="w-6 h-6"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+
+          {/* 鍙崇澶?*/}
+          <button
+            type="button"
+            aria-label="Next video"
+            onClick={goNext}
+            className="absolute right-[1rem] top-1/2 -translate-y-1/2 w-[3rem] h-[3rem] flex items-center justify-center bg-black/40 hover:bg-black/60 rounded-full backdrop-blur-sm border border-white/30 transition"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={2}
+              stroke="white"
+              className="w-6 h-6"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {/* 褰撳墠搴忓彿 */}
+          <div className="absolute bottom-[0.75rem] left-1/2 -translate-x-1/2 text-white/90 text-[0.9rem] px-[0.5rem] py-[0.25rem] bg-black/30 rounded">
+            {curIdx + 1} / {videos.length}
+          </div>
+        </>
+      )}
     </div>
   );
 };

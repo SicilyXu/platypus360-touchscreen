@@ -28,6 +28,45 @@ const getServiceIcon = (serviceType = '') => {
 const getServiceKey = (service = {}) =>
   `${service.serviceType || ''}-${service.from || ''}-${service.to || ''}-${service.departureTime || ''}`;
 
+function extractDestination(toStr) {
+  if (!toStr) return '';
+  const cutoff = ['Catering', 'Reserved', 'Disabled', 'VLocity', 'Sprinter', 'service x', 'Up Front'];
+  let result = toStr;
+  for (const pattern of cutoff) {
+    const idx = result.indexOf(pattern);
+    if (idx > 0) {
+      result = result.substring(0, idx).trim();
+      break;
+    }
+  }
+  return result;
+}
+
+const getDisplayFrom = (fromStr) => (fromStr?.includes('Departure time') ? '' : fromStr || '');
+
+const getVenueOriginName = (name) => {
+  if (!name) return '';
+  return String(name)
+    .replace(/\s*Visitor Information Centre\s*/i, '')
+    .replace(/\s*Visitor Information\s*/i, '')
+    .replace(/\s*Visitor Centre\s*/i, '')
+    .trim();
+};
+
+const timeStringToMinutes = (value) => {
+  if (typeof value !== 'string') return null;
+  const match = value.trim().match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) return null;
+
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (Number.isNaN(hours) || Number.isNaN(minutes) || hours > 23 || minutes > 59) {
+    return null;
+  }
+
+  return hours * 60 + minutes;
+};
+
 const VLineDetailPage = ({ selectedService, onBack, onServiceClick }) => {
   const { venueBasicInfo, vlineData } = useContext(AppContext);
 
@@ -36,10 +75,53 @@ const VLineDetailPage = ({ selectedService, onBack, onServiceClick }) => {
 
   const upcomingServices = useMemo(() => {
     if (!Array.isArray(vlineData)) return [];
-    return vlineData.filter((service) => getServiceKey(service) !== getServiceKey(selectedService));
+
+    const now = new Date();
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+    return vlineData.filter((service) => {
+      const departureMinutes = timeStringToMinutes(service?.departureTime);
+      return (
+        getServiceKey(service) !== getServiceKey(selectedService) &&
+        departureMinutes != null &&
+        departureMinutes > currentMinutes
+      );
+    });
   }, [selectedService, vlineData]);
 
   if (!selectedService) return null;
+
+  const detailFallbackFrom = venueBasicInfo?.name
+    ? getVenueOriginName(venueBasicInfo.name)
+    : 'Origin';
+  const selectedFrom = getDisplayFrom(selectedService.from) || detailFallbackFrom;
+  const selectedTo = extractDestination(selectedService.to);
+  const now = new Date();
+  const currentMinutes = now.getHours() * 60 + now.getMinutes();
+  const selectedDepartureMinutes = timeStringToMinutes(selectedService?.departureTime);
+  const selectedServiceIsUpcoming = selectedDepartureMinutes != null && selectedDepartureMinutes > currentMinutes;
+
+  if (!selectedServiceIsUpcoming && upcomingServices.length === 0) {
+    return (
+      <div
+        className="w-full h-full text-white px-[2rem] py-[3rem] overflow-y-auto flex flex-col items-center"
+        style={{ background: `linear-gradient(to bottom, ${standardColor}, ${bgColor})` }}
+      >
+        <div className="w-full max-w-[64rem] flex items-center justify-between">
+          <button onClick={onBack} className="text-white" aria-label="Close">
+            <X size={28} />
+          </button>
+          <div className="flex flex-col items-center text-center flex-1">
+            <h1 className="text-[1.9rem] font-bold">V/Line Timetable</h1>
+          </div>
+          <div className="w-[28px]" />
+        </div>
+        <div className="w-full bg-white bg-opacity-10 p-[2rem] shadow-md rounded-md mt-[2rem]">
+          <p className="text-white text-opacity-80 text-center text-[1.3rem]">No more services today</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -53,27 +135,27 @@ const VLineDetailPage = ({ selectedService, onBack, onServiceClick }) => {
         <div className="flex flex-col items-center text-center flex-1">
           <h1 className="text-[1.9rem] font-bold">V/Line Timetable</h1>
           <p className="text-[1.5rem] opacity-80">
-            {selectedService.from} → {selectedService.to}
+            {selectedFrom} -> {selectedTo}
           </p>
         </div>
         <div className="w-[28px]" />
       </div>
 
       <div className="w-full bg-white bg-opacity-10 p-[2rem] shadow-md rounded-md mt-[1rem]">
-        <div className="flex flex-col md:flex-row gap-[1rem]">
+        <div className="flex flex-row gap-[1rem]">
           <VLineInfoCard
             title="Service"
             rows={[
               { label: 'Type', value: selectedService.serviceType },
-              { label: 'From', value: selectedService.from },
-              { label: 'To', value: selectedService.to },
+              { label: 'From', value: selectedFrom },
+              { label: 'To', value: selectedTo },
               { label: 'Status', value: selectedService.status },
             ]}
           />
           <VLineInfoCard
             title="Timing"
             rows={[
-              { label: 'Departure', value: selectedService.departureTime },
+              { label: 'Departs', value: selectedService.departureTime },
               { label: 'Arrival', value: selectedService.arrivalTime },
               { label: 'Connection', value: selectedService.connection },
               { label: 'Note', value: selectedService.note },
@@ -85,7 +167,9 @@ const VLineDetailPage = ({ selectedService, onBack, onServiceClick }) => {
       <div className="w-full mt-[2rem]">
         <h2 className="text-[1.8rem] font-bold mb-[1.5rem] text-center text-white">Upcoming Services</h2>
         <div className="bg-white bg-opacity-10 shadow-md rounded-md p-[1.5rem]">
-          {upcomingServices.length > 0 ? (
+          {upcomingServices.length === 0 ? (
+            <p className="text-white text-opacity-60">No more services today</p>
+          ) : (
             <ul className="space-y-[0.8rem] text-white pl-0">
               {upcomingServices.map((service) => (
                 <li
@@ -95,7 +179,7 @@ const VLineDetailPage = ({ selectedService, onBack, onServiceClick }) => {
                 >
                   {getServiceIcon(service.serviceType)}
                   <span className="flex-1">
-                    {service.from} → {service.to}
+                    {getDisplayFrom(service.from)} -> {extractDestination(service.to)}
                   </span>
                   <span className="flex items-center gap-[0.35rem]">
                     <Clock3 size={18} />
@@ -108,8 +192,6 @@ const VLineDetailPage = ({ selectedService, onBack, onServiceClick }) => {
                 </li>
               ))}
             </ul>
-          ) : (
-            <p className="text-white text-opacity-60">No additional V/Line services</p>
           )}
         </div>
       </div>

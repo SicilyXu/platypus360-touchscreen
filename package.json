@@ -23,6 +23,7 @@
     "files": [
       "electron/**/*",
       "react-build/**/*",
+      "frontend-web/src/data/**/*",
       "package.json"
     ],
     "directories": {

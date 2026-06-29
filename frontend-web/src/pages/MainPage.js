@@ -1,4 +1,4 @@
-import React, { useEffect, useContext, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useContext, useState, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 
 import AppContext from '../context/AppContext';
@@ -13,8 +13,8 @@ import AdsSection from '../components/AdsSection';
 
 import OverlayPage from '../components/Content/OverlayPage';
 import SidebarPage from '../components/Content/SidebarPage';
-import LeafNodePage from '../components/Content/LeafNodePage';
 import MapPage from '../components/Content/MapPage';
+import LeafNodePage from '../components/Content/LeafNodePage';
 
 import FlightDetailPage from '../components/FlightDetail';
 import TideDetailPage from '../components/TideDetail';
@@ -26,6 +26,20 @@ import useIdleReset from '../components/UserIdle';
 
 import '../index.css';
 import { getVenueDisplayName } from '../utils/venueDisplayName';
+
+function StatusScreen({ message }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-white bg-opacity-90 px-6"
+      style={{ minHeight: '100vh', minWidth: '100vw' }}
+    >
+      <div className="max-w-[36rem] text-center text-gray-700">
+        <div className="text-3xl font-bold">Unable to Load Venue</div>
+        <div className="mt-4 text-xl">{message}</div>
+      </div>
+    </div>
+  );
+}
 
 function DotsLoading() {
   const [dots, setDots] = useState('');
@@ -60,34 +74,19 @@ const findContentById = (tree, targetId) => {
   return null;
 };
 
-const hasChildNodes = (node) => Array.isArray(node?.attributes) && node.attributes.length > 0;
-
-const renderContentNode = (node, onBack, rootName, fromAdv = false) => {
-  if (!node) return null;
-
+const renderContentNode = (node, onBack, rootName, fromAdv) => {
   if (node.isLeaf) {
-    return (
-      <LeafNodePage
-        node={node}
-        onBack={onBack}
-        rootName={rootName}
-        fromAdv={fromAdv}
-      />
-    );
+    return <LeafNodePage node={node} onBack={onBack} rootName={rootName} fromAdv={fromAdv} />;
   }
-
+  if (node.layoutStyle === 'overlay') {
+    return <OverlayPage node={node} onBack={onBack} rootName={rootName} />;
+  }
   if (node.layoutStyle === 'sidebar') {
     return <SidebarPage node={node} onBack={onBack} rootName={rootName} />;
   }
-
   if (node.layoutStyle === 'map') {
     return <MapPage node={node} onBack={onBack} rootName={rootName} />;
   }
-
-  if (node.layoutStyle === 'overlay' || hasChildNodes(node)) {
-    return <OverlayPage node={node} onBack={onBack} rootName={rootName} />;
-  }
-
   return null;
 };
 
@@ -103,6 +102,7 @@ const MainPage = () => {
     weatherData,
     tidesData,
     newsData,
+    loading,
     error,
   } = useContext(AppContext);
 
@@ -114,16 +114,25 @@ const MainPage = () => {
   const [selectedNews, setSelectedNews] = useState(null);
   const [showAllNews, setShowAllNews] = useState(false);
   const [fromAdv, setFromAdv] = useState(false);
+  const [venueResolved, setVenueResolved] = useState(false);
 
   const overlayRef = useRef();
 
   useEffect(() => {
-    const venueId = searchParams.get('venue_id');
-    if (venueId) {
-      setVenueId(venueId);
+    const host = window.location.hostname;
+    let id = '';
+
+    const isLocalhost = host === 'localhost' || host === '192.168.0.190';
+    if (isLocalhost) {
+      id = searchParams.get('venue_id');
+    } else {
+      id = host.split('.')[0];
     }
+
+    setVenueId(id);
+    setVenueResolved(true);
     window.scrollTo(0, 0);
-  }, [searchParams, setVenueId]);
+  }, [setVenueId, searchParams]);
 
   useEffect(() => {
     if (venueBasicInfo?.name) {
@@ -137,30 +146,28 @@ const MainPage = () => {
     }
   }, [selectedTreeItem]);
 
-  const closeLiveInfoOverlays = useCallback(() => {
+  const handleItemSelect = useCallback((item) => {
     setSelectedFlight(null);
     setSelectedTide(null);
     setSelectedVLineService(null);
     setSelectedNews(null);
-    setShowAllNews(false);
-  }, []);
-
-  const handleItemSelect = useCallback((item) => {
-    closeLiveInfoOverlays();
+    setFromAdv(false);
     setSelectedTreeItem(item);
-  }, [closeLiveInfoOverlays]);
+  }, []);
 
   const handleAdvClick = (tsContentId) => {
     const node = findContentById(contentTree, tsContentId);
-    if (!node) {
+    if (node) {
+      setSelectedFlight(null);
+      setSelectedNews(null);
+      setSelectedTide(null);
+      setSelectedVLineService(null);
+      setSelectedTreeItem(node);
+      setFromAdv(true);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
       console.warn('ts_content not found for ID:', tsContentId);
-      return;
     }
-
-    closeLiveInfoOverlays();
-    setSelectedTreeItem(node);
-    setFromAdv(true);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
@@ -168,7 +175,12 @@ const MainPage = () => {
       const isInsideOverlay = e.target.closest('#overlay-root') !== null;
       if (!isInsideOverlay) {
         setSelectedTreeItem(null);
-        closeLiveInfoOverlays();
+        setSelectedFlight(null);
+        setSelectedNews(null);
+        setShowAllNews(false);
+        setSelectedTide(null);
+        setSelectedVLineService(null);
+        setFromAdv(false);
       }
     };
 
@@ -179,27 +191,31 @@ const MainPage = () => {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [
-    selectedTreeItem,
-    selectedFlight,
-    selectedNews,
-    showAllNews,
-    selectedTide,
-    selectedVLineService,
-    closeLiveInfoOverlays,
-  ]);
+  }, [selectedTreeItem, selectedFlight, selectedNews, showAllNews, selectedTide, selectedVLineService]);
 
   useIdleReset(() => {
     setSelectedTreeItem(null);
-    closeLiveInfoOverlays();
+    setSelectedFlight(null);
+    setSelectedNews(null);
+    setShowAllNews(false);
+    setSelectedTide(null);
+    setSelectedVLineService(null);
+    setFromAdv(false);
   }, 60000);
 
-  if (!venueBasicInfo) {
+  const selectedTreeDisplayName = getVenueDisplayName(selectedTreeItem?.name, venueId);
+  const selectedTreeNodeForDisplay = useMemo(() => {
+    if (!selectedTreeItem) return null;
+    return { ...selectedTreeItem, displayName: selectedTreeDisplayName };
+  }, [selectedTreeItem, selectedTreeDisplayName]);
+
+  if (loading || !venueResolved) {
     return <DotsLoading />;
   }
 
-  const selectedTreeDisplayName = getVenueDisplayName(selectedTreeItem?.name, venueId);
-  const selectedTreeNodeForDisplay = selectedTreeItem ? { ...selectedTreeItem, displayName: selectedTreeDisplayName } : null;
+  if (!venueBasicInfo) {
+    return <StatusScreen message={error || 'Venue data is unavailable.'} />;
+  }
 
   return (
     <div className="main-wrapper">
@@ -216,13 +232,18 @@ const MainPage = () => {
           venueBasicInfo={venueBasicInfo}
           onLeftItemClick={(item) => {
             setSelectedTreeItem(null);
-            closeLiveInfoOverlays();
+            setSelectedFlight(null);
+            setSelectedNews(null);
+            setShowAllNews(false);
+            setSelectedTide(null);
+            setSelectedVLineService(null);
+            setFromAdv(false);
 
             if (item?.flight) {
               setSelectedFlight(item);
             } else if (item?.type && item?.height) {
               setSelectedTide(item);
-            } else if (item?.serviceType && item?.from && item?.to) {
+            } else if (item?.serviceType && item?.to) {
               setSelectedVLineService(item);
             }
           }}
@@ -265,7 +286,10 @@ const MainPage = () => {
           {selectedTreeNodeForDisplay && (
             renderContentNode(
               selectedTreeNodeForDisplay,
-              () => setSelectedTreeItem(null),
+              () => {
+                setFromAdv(false);
+                setSelectedTreeItem(null);
+              },
               selectedTreeDisplayName,
               fromAdv
             )

@@ -12,6 +12,7 @@ import MapPreviewModal from "../MapPreviewModal";
 const OverlayPage = ({ node, onBack, rootName }) => {
   const [activeChild, setActiveChild] = useState(null);
   const [mapImage, setMapImage] = useState(null);
+  const [orderedChildren, setOrderedChildren] = useState(() => sortContentChildrenForDisplay(node));
   const { venueBasicInfo, fallbackImage } = useContext(AppContext);
 
   const standardColor = venueBasicInfo?.theme?.standard || "#234B92";
@@ -22,15 +23,9 @@ const OverlayPage = ({ node, onBack, rootName }) => {
   const title = (node.displayName || node.name)?.toUpperCase() || "Untitled";
   const titleSizeClass = title.length > 15 ? "text-[2rem]" : "text-[2.5rem]";
 
-  // 动态注入滚动条样式
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--scrollbar-thumb-color",
-      standardColor
-    );
+    document.documentElement.style.setProperty("--scrollbar-thumb-color", standardColor);
   }, [standardColor]);
-
-  const [orderedChildren, setOrderedChildren] = useState(() => sortContentChildrenForDisplay(node));
 
   useEffect(() => {
     if (!activeChild) {
@@ -38,9 +33,7 @@ const OverlayPage = ({ node, onBack, rootName }) => {
     }
   }, [node, activeChild]);
 
-
   const handleChildClick = (child) => {
-
     setActiveChild({ ...child, hasParent: true });
   };
 
@@ -64,7 +57,6 @@ const OverlayPage = ({ node, onBack, rootName }) => {
   return (
     <>
       <LayoutWrapper node={node} onBack={onBack} rootName={rootName}>
-        {/* 顶部标题�?*/}
         <div
           className={`h-[5.7rem] flex items-center justify-center text-white font-medium tracking-[0.2em] relative z-10 text-center ${titleSizeClass}`}
           style={{
@@ -74,18 +66,13 @@ const OverlayPage = ({ node, onBack, rootName }) => {
           <div className="relative flex items-center">
             {title}
             {cleanMapUrl && (
-              <button
-                onClick={() => setMapImage(cleanMapUrl)}
-                className="ml-3 text-white"
-              >
+              <button onClick={() => setMapImage(cleanMapUrl)} className="ml-3 text-white">
                 <MapPin size={20} />
               </button>
             )}
           </div>
         </div>
 
-
-        {/* 内容滚动区域 */}
         <div
           className="custom-scrollbar overflow-auto pt-1 pb-2"
           style={{
@@ -108,7 +95,10 @@ const OverlayPage = ({ node, onBack, rootName }) => {
                       handleChildClick(child);
                     }}
                   >
-                    <div className="w-full h-[16.7rem] overflow-hidden shadow-[0_1rem_5rem_rgba(0,0,0,0.03)] relative" style={{ backgroundColor: lightColor }}>
+                    <div
+                      className="w-full h-[16.7rem] overflow-hidden shadow-[0_1rem_5rem_rgba(0,0,0,0.03)] relative"
+                      style={{ backgroundColor: lightColor }}
+                    >
                       <img
                         src={imageUrl || fallbackImage}
                         alt={child.name}
@@ -118,7 +108,6 @@ const OverlayPage = ({ node, onBack, rootName }) => {
                           e.target.src = fallbackImage;
                         }}
                       />
-
 
                       <div className="absolute bottom-0 w-full bg-black bg-opacity-50 text-white text-[1.8rem] uppercase text-center py-2 font-medium tracking-wide">
                         {child.name}
@@ -136,11 +125,9 @@ const OverlayPage = ({ node, onBack, rootName }) => {
         </div>
       </LayoutWrapper>
 
-      {/* 地图预览弹窗 */}
       <MapPreviewModal mapUrl={mapImage} onClose={() => setMapImage(null)} />
     </>
   );
 };
 
 export default OverlayPage;
-

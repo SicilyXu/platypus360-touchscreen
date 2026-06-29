@@ -163,7 +163,7 @@ async function autoUpdateCheck(showProgress = true) {
 
 
 
-// ── 每天凌晨 3 点自动重启 ─────────────────────────────────────────────────────
+// ── 每天 03:00 自动重启 ─────────────────────────────────────────────────────
 
 let nightlyRestartScheduled = false;
 const AUTO_UPDATE_ON_START = false;
@@ -215,7 +215,15 @@ async function performNightlyRestart() {
       return;
     }
 
-    // 4. 下载最新数据
+    // 4. 上报在线状态
+    try {
+      await reportStatus(cfg.venueId, baseUrl);
+      console.log('[NightlyRestart] Status reported');
+    } catch (e) {
+      console.error('[NightlyRestart] reportStatus failed:', e?.message || e);
+    }
+
+    // 5. 下载最新数据
     console.log('[NightlyRestart] Downloading fresh data before restart...');
     const success = await downloadVenueData(
       cfg.venueId,
@@ -324,6 +332,25 @@ if (AUTO_UPDATE_INTERVAL_MS > 0) {
     autoUpdateCheck(false);
   }, AUTO_UPDATE_INTERVAL_MS);
 }
+
+// 独立心跳：启动 2 秒后上报一次，之后每 6 小时上报一次
+async function sendHeartbeat() {
+  try {
+    const cfg = fs.existsSync(configPath)
+      ? JSON.parse(fs.readFileSync(configPath, 'utf-8'))
+      : {};
+    if (!cfg.venueId) return;
+    const online = await hasNetworkConnectivity();
+    if (!online) return;
+    await reportStatus(cfg.venueId, baseUrl);
+    console.log('[Heartbeat] Status reported');
+  } catch (e) {
+    console.error('[Heartbeat] failed:', e?.message || e);
+  }
+}
+
+setTimeout(sendHeartbeat, 2000);
+setInterval(sendHeartbeat, 6 * 60 * 60 * 1000);
 // ---------------- IPC 通信 ----------------
 
 ipcMain.handle('get-config', () => {

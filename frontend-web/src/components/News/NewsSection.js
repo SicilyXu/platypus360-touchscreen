@@ -15,7 +15,7 @@ const NewsSection = ({ newsData, selectedNews, onNewsClick }) => {
   const [translateX, setTranslateX] = useState(0);
 
   const standardColor = venueBasicInfo?.theme?.standard || '#234B92';
-  const lightColor = adjustLightness(standardColor, 0.35);
+  const lightColor = venueBasicInfo?.theme?.light || adjustLightness(standardColor, 0.35);
 
   useEffect(() => {
     if (!newsData || newsData.length === 0) {

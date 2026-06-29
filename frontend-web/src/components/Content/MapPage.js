@@ -75,6 +75,7 @@ const MapPage = ({ node, onBack, rootName, fromAdv = false }) => {
     [venueBasicInfo?.landing?.geoLocation]
   );
 
+
   const locationsWithDistance = useMemo(() => {
     return (node?.attributes || [])
       .filter((item) => item?.mapData?.geoLocation)

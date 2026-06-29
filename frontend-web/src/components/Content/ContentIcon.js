@@ -1,35 +1,28 @@
 import React from "react";
-import accomodationIcon from "../../assets/icons/accomodation_icon.png";
-import activitiesIcon from "../../assets/icons/activities_icon.png";
-import destinationsIcon from "../../assets/icons/destinations_icon.png";
-import eatingOutIcon from "../../assets/icons/eating_out_icon.png";
-import eventsIcon from "../../assets/icons/events_icon.png";
-import mapIcon from "../../assets/icons/map_icon.png";
-import servicesIcon from "../../assets/icons/services_icon.png";
-import defaultIcon from "../../assets/icons/default1.png";
 
+const ICON_PREFIX = "https://touchscreen-cms.s3.ap-southeast-2.amazonaws.com/icons/";
 const DEFAULT_ICONS = {
-  default1: defaultIcon,
-  default2: defaultIcon,
+  default1: ICON_PREFIX + "default1.png",
+  default2: ICON_PREFIX + "default2.png",
 };
 
 const ICON_DICT = [
   {
-    icon: accomodationIcon,
+    icon: "accomodation",
     aliases: [
       "accomodation", "accommodation", "accommodations", "accomodations",
       "hotel", "hotels", "our hotel", "our hotels", "stay", "stays", "lodging", "lodgings"
     ],
   },
-  { icon: activitiesIcon,   aliases: ["activity", "activities", "explore", "explores"] },
-  { icon: destinationsIcon, aliases: ["destonations", "destination", "destinations", "destionations"] },
-  { icon: eatingOutIcon,    aliases: ["eating out", "eat out", "dining", "dine", "restaurant", "restaurants"] },
-  { icon: eventsIcon,       aliases: ["event", "events", "festival", "festivals"] },
-  { icon: mapIcon,          aliases: ["map", "maps", "location", "locations"] },
-  { icon: servicesIcon,     aliases: ["service", "services"] },
+  { icon: "activities",   aliases: ["activity", "activities", "explore", "explores"] },
+  { icon: "destinations", aliases: ["destonations", "destination", "destinations", "destionations"] },
+  { icon: "eating_out",   aliases: ["eating out", "eat out", "dining", "dine", "restaurant", "restaurants"] },
+  { icon: "events",       aliases: ["event", "events", "festival", "festivals"] },
+  { icon: "map",          aliases: ["map", "maps", "location", "locations"] },
+  { icon: "services",     aliases: ["service", "services"] },
 ];
 
-/** 根据名称匹配 ICON */
+/** 鏍规嵁鍚嶇О鍖归厤 ICON */
 function getIconBaseByName(name) {
   if (!name) return null;
   const key = String(name).trim().toLowerCase().replace(/\s+|-/g, " ");
@@ -41,8 +34,8 @@ function getIconBaseByName(name) {
 
 /**
  * ContentIcon
- * - `name` 可以是 string（类别名）或对象（包含 { name, bannerImage/bannerimage }）
- * - 仅读取“当前对象顶层”的 bannerImage；不查 attributes
+ * - `name` 鍙互鏄?string锛堢被鍒悕锛夋垨瀵硅薄锛堝寘鍚?{ name, bannerImage/bannerimage }锛?
+ * - 浠呰鍙栤€滃綋鍓嶅璞￠《灞傗€濈殑 bannerImage锛涗笉鏌?attributes
  */
 export default function ContentIcon({ name, size = 32, defaultType = "default1", style = {} }) {
   let rawName = name;
@@ -50,12 +43,17 @@ export default function ContentIcon({ name, size = 32, defaultType = "default1",
 
   if (name && typeof name === "object") {
     rawName = name.name || "";
-    bannerImage = name.bannerImage || name.bannerimage || null; // 仅顶层
+    bannerImage = name.bannerImage || name.bannerimage || null; // 浠呴《灞?
   }
 
-  const localIcon = bannerImage ? null : getIconBaseByName(rawName);
+  const cleanBannerImage = typeof bannerImage === 'string' ? bannerImage.replace(/^\\{|\\}$/g, '').trim() : bannerImage;
+  const base = cleanBannerImage ? null : getIconBaseByName(rawName);
   const fallbackIcon = DEFAULT_ICONS[defaultType] || DEFAULT_ICONS.default1;
-  const url = bannerImage || localIcon || fallbackIcon;
+  const url = cleanBannerImage
+    ? cleanBannerImage
+    : base
+      ? `${ICON_PREFIX}${base}_icon.png`
+      : fallbackIcon;
 
   const [imgSrc, setImgSrc] = React.useState(url);
 

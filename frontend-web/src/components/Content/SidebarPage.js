@@ -11,28 +11,22 @@ import MapPreviewModal from "../MapPreviewModal";
 const SidebarPage = ({ node, onBack, rootName }) => {
   const [activeChild, setActiveChild] = useState(null);
   const [mapImage, setMapImage] = useState(null);
+  const [orderedChildren, setOrderedChildren] = useState(() => sortContentChildrenForDisplay(node));
   const { venueBasicInfo, fallbackImage } = useContext(AppContext);
-
 
   const standardColor = venueBasicInfo?.theme?.standard || "#8b6c2b";
   const lightColor = adjustLightness(standardColor, 0.3);
   const darkColor = adjustLightness(standardColor, -0.1);
 
   useEffect(() => {
-    document.documentElement.style.setProperty(
-      "--scrollbar-thumb-color",
-      standardColor
-    );
+    document.documentElement.style.setProperty("--scrollbar-thumb-color", standardColor);
   }, [standardColor]);
-
-  const [orderedChildren, setOrderedChildren] = useState(() => sortContentChildrenForDisplay(node));
 
   useEffect(() => {
     if (!activeChild) {
       setOrderedChildren(sortContentChildrenForDisplay(node));
     }
   }, [node, activeChild]);
-
 
   const handleChildClick = (child) => {
     setActiveChild({ ...child, hasParent: true });
@@ -56,7 +50,6 @@ const SidebarPage = ({ node, onBack, rootName }) => {
   return (
     <>
       <LayoutWrapper node={node} onBack={onBack} rootName={rootName}>
-        {/* 顶部�?*/}
         <div
           className="h-[5.7rem] flex items-center justify-center text-white text-[2.5rem] font-medium tracking-[0.2em] relative z-10 text-center"
           style={{
@@ -66,7 +59,6 @@ const SidebarPage = ({ node, onBack, rootName }) => {
           {(node.displayName || node.name)?.toUpperCase() || "Untitled"}
         </div>
 
-        {/* 内容�?*/}
         <div
           className="custom-scrollbar overflow-y-auto pt-[0.15rem] pb-2"
           style={{ maxHeight: "calc(100vh - 58.5rem)" }}
@@ -85,9 +77,7 @@ const SidebarPage = ({ node, onBack, rootName }) => {
                     style={{ backgroundColor: standardColor }}
                   >
                     <img
-                      src={
-                        child.bannerImage?.replace(/^\{|\}$/g, "").trim() || fallbackImage
-                      }
+                      src={child.bannerImage?.replace(/^\{|\}$/g, "").trim() || fallbackImage}
                       alt={child.name}
                       className="w-[14.2rem] h-full object-cover flex-shrink-0"
                       style={{ backgroundColor: standardColor }}
@@ -108,21 +98,17 @@ const SidebarPage = ({ node, onBack, rootName }) => {
                           return s.charAt(0).toUpperCase() + s.slice(1) + (w.length > 10 ? "..." : "");
                         })()}
                       </div>
-
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="text-center text-gray-400 text-[1.2rem] mt-12">
-
-            </div>
+            <div className="text-center text-gray-400 text-[1.2rem] mt-12"></div>
           )}
         </div>
       </LayoutWrapper>
 
-      {/* 地图弹窗组件 */}
       <div className="bg-black bg-opacity-50">
         <MapPreviewModal mapUrl={mapImage} onClose={() => setMapImage(null)} />
       </div>
@@ -131,4 +117,3 @@ const SidebarPage = ({ node, onBack, rootName }) => {
 };
 
 export default SidebarPage;
-

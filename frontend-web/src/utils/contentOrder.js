@@ -10,10 +10,10 @@ export function shuffleArray(items) {
 function shouldKeepOriginalOrder(node) {
   if (!node) return true;
 
-  const name = typeof node.name === \"string\" ? node.name.trim().toLowerCase() : \"\";
-  const layoutStyle = typeof node.layoutStyle === \"string\" ? node.layoutStyle.trim().toLowerCase() : \"\";
+  const name = typeof node.name === "string" ? node.name.trim().toLowerCase() : "";
+  const layoutStyle = typeof node.layoutStyle === "string" ? node.layoutStyle.trim().toLowerCase() : "";
 
-  return name === \"nearby\" || layoutStyle === \"map\";
+  return name === "nearby" || layoutStyle === "map";
 }
 
 export function sortContentChildrenForDisplay(node) {
