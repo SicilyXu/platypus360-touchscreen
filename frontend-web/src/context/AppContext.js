@@ -183,28 +183,12 @@ export const AppProvider = ({ children }) => {
     setLoading(true);
     setError('');
 
+    // Phase 1: critical path — show UI as soon as basicInfo + contentTree are ready
     Promise.allSettled([
       getVenueBasicInfo(venueId),
       getVenueContentTree(venueId),
-      getVenueAdvs(venueId),
-      getVenueVideos(venueId),
-      getFlights(venueId),
-      getWeather(venueId),
-      getNews(venueId),
-      getTides(venueId),
-      getVLine(venueId)
     ])
-      .then(([
-        basicRes,
-        contentTreeRes,
-        advsRes,
-        videosRes,
-        flightsRes,
-        weatherRes,
-        newsRes,
-        tidesRes,
-        vlineRes
-      ]) => {
+      .then(([basicRes, contentTreeRes]) => {
         if (basicRes.status === 'fulfilled') {
           const info = basicRes.value;
           setVenueBasicInfo(info);
@@ -213,9 +197,7 @@ export const AppProvider = ({ children }) => {
           const cleanedLogo = typeof logo === 'string' ? logo.trim() : '';
           const isValidHttpUrl = (url) => /^https?:\/\/.+/.test(url);
           setFallbackImage(
-            isValidHttpUrl(cleanedLogo)
-              ? cleanedLogo
-              : DEFAULT_FALLBACK_IMAGE
+            isValidHttpUrl(cleanedLogo) ? cleanedLogo : DEFAULT_FALLBACK_IMAGE
           );
         } else {
           setVenueBasicInfo(null);
@@ -225,22 +207,38 @@ export const AppProvider = ({ children }) => {
         }
 
         if (contentTreeRes.status === 'fulfilled') setContentTree(contentTreeRes.value || []);
-        if (advsRes.status === 'fulfilled') setVenueAdvs(advsRes.value || []);
-        if (videosRes.status === 'fulfilled') setVenueVideos(videosRes.value || []);
-        if (flightsRes.status === 'fulfilled') setFlightsData(flightsRes.value || []);
-        if (weatherRes.status === 'fulfilled') setWeatherData(weatherRes.value || []);
-        if (newsRes.status === 'fulfilled') setNewsData(newsRes.value || []);
-        if (tidesRes.status === 'fulfilled') setTidesData(tidesRes.value || []);
-        if (vlineRes.status === 'fulfilled') setVLineData(vlineRes.value || []);
-        else setVLineData([]);
+
+        setLoading(false);
+
+        // Phase 2: non-critical — load in background after UI is shown
+        Promise.allSettled([
+          getVenueAdvs(venueId),
+          getVenueVideos(venueId),
+          getFlights(venueId),
+          getWeather(venueId),
+          getNews(venueId),
+          getTides(venueId),
+          getVLine(venueId),
+        ]).then(([advsRes, videosRes, flightsRes, weatherRes, newsRes, tidesRes, vlineRes]) => {
+          if (advsRes.status === 'fulfilled') setVenueAdvs(advsRes.value || []);
+          if (videosRes.status === 'fulfilled') setVenueVideos(videosRes.value || []);
+          if (flightsRes.status === 'fulfilled') setFlightsData(flightsRes.value || []);
+          if (weatherRes.status === 'fulfilled') setWeatherData(weatherRes.value || []);
+          if (newsRes.status === 'fulfilled') setNewsData(newsRes.value || []);
+          if (tidesRes.status === 'fulfilled') setTidesData(tidesRes.value || []);
+          if (vlineRes.status === 'fulfilled') setVLineData(vlineRes.value || []);
+          else setVLineData([]);
+        }).catch((err) => {
+          console.error('Background data load error:', err);
+        });
       })
       .catch((err) => {
         console.error('Venue load error:', err);
         if (!hasDataRef.current) {
           setError('Failed to load venue data');
         }
-      })
-      .finally(() => setLoading(false));
+        setLoading(false);
+      });
   }, [venueId]);
 
   useEffect(() => {
