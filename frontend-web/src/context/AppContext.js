@@ -39,6 +39,20 @@ function writeVenueCache(venueId, basicInfo, contentTree) {
   } catch {}
 }
 
+function preloadContentImages(tree) {
+  if (!Array.isArray(tree)) return;
+  const collect = (nodes) => {
+    for (const node of nodes) {
+      const url = node.bannerImage?.replace(/^\{|\}$/g, '').trim();
+      if (url && /^https?:\/\//.test(url)) {
+        new Image().src = url;
+      }
+      if (Array.isArray(node.attributes)) collect(node.attributes);
+    }
+  };
+  collect(tree);
+}
+
 function normalizeOfflineAssetPath(assetPath) {
   if (!assetPath || typeof assetPath !== 'string') return '';
 
@@ -220,6 +234,7 @@ export const AppProvider = ({ children }) => {
       applyBasicInfo(cached.basicInfo);
       setContentTree(cached.contentTree);
       setLoading(false);
+      preloadContentImages(cached.contentTree);
     } else {
       setLoading(true);
     }
@@ -239,7 +254,10 @@ export const AppProvider = ({ children }) => {
           setError('Failed to load venue data');
         }
 
-        if (freshTree) setContentTree(freshTree);
+        if (freshTree) {
+          setContentTree(freshTree);
+          preloadContentImages(freshTree);
+        }
 
         if (freshBasic && freshTree) writeVenueCache(venueId, freshBasic, freshTree);
 
