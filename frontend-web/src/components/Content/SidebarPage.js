@@ -81,6 +81,7 @@ const SidebarPage = ({ node, onBack, rootName }) => {
                       alt={child.name}
                       className="w-[14.2rem] h-full object-cover flex-shrink-0"
                       style={{ backgroundColor: standardColor }}
+                      loading="lazy"
                       onError={(e) => {
                         e.target.onerror = null;
                         e.target.src = fallbackImage;

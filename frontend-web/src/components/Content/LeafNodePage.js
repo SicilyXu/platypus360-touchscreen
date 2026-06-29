@@ -92,6 +92,7 @@ const LeafNodePage = ({ node, onBack, rootName, fromAdv = false }) => {
                   src={url}
                   alt={`image-${idx}`}
                   className="w-full h-[25rem] object-cover"
+                  loading={idx === 0 ? "eager" : "lazy"}
                 />
               </div>
             ))}

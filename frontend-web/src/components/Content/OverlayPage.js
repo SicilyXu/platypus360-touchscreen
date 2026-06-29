@@ -103,6 +103,7 @@ const OverlayPage = ({ node, onBack, rootName }) => {
                         src={imageUrl || fallbackImage}
                         alt={child.name}
                         className="w-full h-full object-cover block"
+                        loading="lazy"
                         onError={(e) => {
                           e.target.onerror = null;
                           e.target.src = fallbackImage;
