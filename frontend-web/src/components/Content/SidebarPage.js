@@ -56,17 +56,17 @@ const SidebarPage = ({ node, onBack, rootName }) => {
   return (
     <>
       <LayoutWrapper node={node} onBack={onBack} rootName={rootName}>
-        {/* 顶部�?*/}
+        {/* 顶部�?*/}
         <div
           className="h-[5.7rem] flex items-center justify-center text-white text-[2.5rem] font-medium tracking-[0.2em] relative z-10 text-center"
           style={{
             background: `linear-gradient(to right, ${darkColor}, ${lightColor})`,
           }}
         >
-          {node.name?.toUpperCase() || "Untitled"}
+          {(node.displayName || node.name)?.toUpperCase() || "Untitled"}
         </div>
 
-        {/* 内容�?*/}
+        {/* 内容�?*/}
         <div
           className="custom-scrollbar overflow-y-auto pt-[0.15rem] pb-2"
           style={{ maxHeight: "calc(100vh - 58.5rem)" }}

@@ -25,6 +25,7 @@ import NewsDetailPage from '../components/News/NewsDetail';
 import useIdleReset from '../components/UserIdle';
 
 import '../index.css';
+import { getVenueDisplayName } from '../utils/venueDisplayName';
 
 function DotsLoading() {
   const [dots, setDots] = useState('');
@@ -93,6 +94,7 @@ const renderContentNode = (node, onBack, rootName, fromAdv = false) => {
 const MainPage = () => {
   const {
     setVenueId,
+    venueId,
     venueBasicInfo,
     venueAdvs,
     contentTree,
@@ -196,6 +198,9 @@ const MainPage = () => {
     return <DotsLoading />;
   }
 
+  const selectedTreeDisplayName = getVenueDisplayName(selectedTreeItem?.name, venueId);
+  const selectedTreeNodeForDisplay = selectedTreeItem ? { ...selectedTreeItem, displayName: selectedTreeDisplayName } : null;
+
   return (
     <div className="main-wrapper">
       <div
@@ -257,11 +262,11 @@ const MainPage = () => {
 
       {(selectedTreeItem || selectedFlight || selectedNews || showAllNews || selectedTide || selectedVLineService) && (
         <div ref={overlayRef} id="overlay-root" className="overlay-section">
-          {selectedTreeItem && (
+          {selectedTreeNodeForDisplay && (
             renderContentNode(
-              selectedTreeItem,
+              selectedTreeNodeForDisplay,
               () => setSelectedTreeItem(null),
-              selectedTreeItem.name,
+              selectedTreeDisplayName,
               fromAdv
             )
           )}

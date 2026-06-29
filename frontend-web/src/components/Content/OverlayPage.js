@@ -19,7 +19,7 @@ const OverlayPage = ({ node, onBack, rootName }) => {
   const lightBackgroundColor = adjustBrightness(lightColor, 0.85);
   const darkColor = adjustLightness(standardColor, -0.1);
 
-  const title = node.name?.toUpperCase() || "Untitled";
+  const title = (node.displayName || node.name)?.toUpperCase() || "Untitled";
   const titleSizeClass = title.length > 15 ? "text-[2rem]" : "text-[2.5rem]";
 
   // 动态注入滚动条样式
@@ -64,7 +64,7 @@ const OverlayPage = ({ node, onBack, rootName }) => {
   return (
     <>
       <LayoutWrapper node={node} onBack={onBack} rootName={rootName}>
-        {/* 顶部标题�?*/}
+        {/* 顶部标题�?*/}
         <div
           className={`h-[5.7rem] flex items-center justify-center text-white font-medium tracking-[0.2em] relative z-10 text-center ${titleSizeClass}`}
           style={{

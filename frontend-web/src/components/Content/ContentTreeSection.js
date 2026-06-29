@@ -1,6 +1,7 @@
 import React, { useContext, useRef, useMemo } from "react";
 import AppContext from "../../context/AppContext";
 import ContentIcon from "./ContentIcon";
+import { getVenueDisplayName } from '../../utils/venueDisplayName';
 
 const isNodeOrChildSelected = (node, targetId) => {
   if (node.id === targetId) return true;
@@ -14,7 +15,7 @@ const isNodeOrChildSelected = (node, targetId) => {
  * 顶部横向内容导航条组件（仅负责展示与选中）
  */
 const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
-  const { contentTree, venueBasicInfo } = useContext(AppContext);
+  const { contentTree, venueBasicInfo, venueId } = useContext(AppContext);
   const standardColor = venueBasicInfo?.theme?.standard || "#234B92";
 
   const containerRef = useRef(null);
@@ -73,7 +74,7 @@ const ContentTreeSection = ({ onItemSelect, selectedItem }) => {
                   : "font-medium tracking-wide"
               } text-[1rem]`}
             >
-              {item?.name?.toUpperCase() || ""}
+              {getVenueDisplayName(item?.name, venueId)?.toUpperCase() || ""}
             </span>
           </div>
         );
