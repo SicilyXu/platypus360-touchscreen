@@ -12,6 +12,49 @@ import {
 } from '../api';
 
 const AppContext = createContext();
+const PUBLIC_URL = process.env.PUBLIC_URL || '.';
+const DEFAULT_FALLBACK_IMAGE = `${PUBLIC_URL}/images/main/touch_and_explore_banner.jpg`;
+
+function normalizeOfflineAssetPath(assetPath) {
+  if (!assetPath || typeof assetPath !== 'string') return '';
+
+  const cleaned = assetPath.trim().replace(/^\{+|\}+$/g, '');
+  if (!cleaned) return '';
+  if (/^(https?:|file:|data:|blob:)/i.test(cleaned)) return cleaned;
+
+  if (/^[a-zA-Z]:[\\/]/.test(cleaned) || cleaned.startsWith('\\')) {
+    const normalized = cleaned.replace(/\\/g, '/');
+    return normalized.startsWith('//') ? `file:${normalized}` : `file:///${normalized}`;
+  }
+
+  return cleaned;
+}
+
+function normalizeContentNode(node) {
+  if (!node || typeof node !== 'object') return node;
+
+  const normalized = {
+    ...node,
+    bannerImage: normalizeOfflineAssetPath(node.bannerImage),
+    bannerimage: normalizeOfflineAssetPath(node.bannerimage),
+    mapUrl: normalizeOfflineAssetPath(node.mapUrl),
+    imageUrls: Array.isArray(node.imageUrls)
+      ? node.imageUrls.map(normalizeOfflineAssetPath)
+      : node.imageUrls,
+    mapData: node.mapData
+      ? {
+          ...node.mapData,
+          imageUrl: normalizeOfflineAssetPath(node.mapData.imageUrl),
+        }
+      : node.mapData,
+  };
+
+  if (Array.isArray(node.attributes)) {
+    normalized.attributes = node.attributes.map(normalizeContentNode);
+  }
+
+  return normalized;
+}
 
 export const AppProvider = ({ children }) => {
   const [venueId, setVenueId] = useState('');
@@ -26,7 +69,7 @@ export const AppProvider = ({ children }) => {
   const [vlineData, setVLineData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [fallbackImage, setFallbackImage] = useState('/images/main/touch_and_explore_banner.jpg');
+  const [fallbackImage, setFallbackImage] = useState(DEFAULT_FALLBACK_IMAGE);
 
   const injectedVenueId = useRef(null);
   const hasDataRef = useRef(false);
@@ -61,34 +104,28 @@ export const AppProvider = ({ children }) => {
       return;
     }
     injectedVenueId.current = newVenueId;
-
-    const fallbackBanner = '/images/main/touch_and_explore_banner.jpg';
-    const fixImagePath = (imgPath) => {
-      if (!imgPath) return '';
-      if (imgPath.startsWith('file://')) return imgPath;
-      return imgPath;
-    };
+    const fallbackBanner = DEFAULT_FALLBACK_IMAGE;
 
     const fixedAdvs = (data.venueAdvs || data.ads || []).map((adv) => ({
       ...adv,
-      image: fixImagePath(adv.image),
-      specialImage: fixImagePath(adv.specialImage),
+      image: normalizeOfflineAssetPath(adv.image),
+      specialImage: normalizeOfflineAssetPath(adv.specialImage),
     }));
 
     const fixedVideos = (data.venueVideos || data.videos || []).map((video) => ({
       ...video,
-      publicLink: fixImagePath(video.publicLink || video.url),
+      publicLink: normalizeOfflineAssetPath(video.publicLink || video.url),
     }));
 
-    const fixedContentTree = data.contentTree || data['ts-content-tree'] || [];
+    const fixedContentTree = (data.contentTree || data['ts-content-tree'] || []).map(normalizeContentNode);
     const rawBasic = (
       data.venueBasicInfo ||
       data['basic-info'] ||
       (typeof data.basicInfo === 'object' && data.basicInfo) || {}
     );
 
-    const fixedSlides = (rawBasic.landing?.venueSlides || []).map(fixImagePath);
-    const fixedLogo = fixImagePath(rawBasic.landing?.venueLogo);
+    const fixedSlides = (rawBasic.landing?.venueSlides || []).map(normalizeOfflineAssetPath);
+    const fixedLogo = normalizeOfflineAssetPath(rawBasic.landing?.venueLogo);
 
     setFallbackImage(fixedLogo || fallbackBanner);
 
@@ -181,7 +218,7 @@ export const AppProvider = ({ children }) => {
           setFallbackImage(
             isValidHttpUrl(cleanedLogo)
               ? cleanedLogo
-              : '/images/main/touch_and_explore_banner.jpg'
+              : DEFAULT_FALLBACK_IMAGE
           );
         } else {
           setVenueBasicInfo(null);
